@@ -1,0 +1,48 @@
+<!-- app/templates/database/questions.html -->
+{% extends "base.html" %}
+
+{% block title %}{{ _('Вопросы') }} - {{ get_app_name() }}{% endblock %}
+
+{% block content %}
+<h2>{{ _('Вопросы') }}</h2>
+
+<div class="table-responsive">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>{{ _('ID') }}</th>
+                <th>{{ _('Текст вопроса') }}</th>
+                <th>{{ _('Тип') }}</th>
+                <th>{{ _('Тест') }}</th>
+                <th>{{ _('Правильный ответ') }}</th>
+                <th>{{ _('Действия') }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for question in questions %}
+            <tr>
+                <td>{{ question.id }}</td>
+                <td>{{ question.question_text|truncate(50) }}</td>
+                <td>
+                    <span class="badge bg-{{ 'info' if question.question_type == 'open' else 'warning' }}">
+                        {{ _(question.question_type|title) }}
+                    </span>
+                </td>
+                <td>{{ question.test.title if question.test else _('N/A') }}</td>
+                <td>{{ question.correct_answer|truncate(30) }}</td>
+                <td>
+                    <a href="{{ url_for('database.edit_record', table='questions', id=question.id) }}" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-pencil"></i> {{ _('Редактировать') }}
+                    </a>
+                    <a href="{{ url_for('database.delete_record', table='questions', id=question.id) }}"
+                       class="btn btn-sm btn-outline-danger"
+                       onclick="return confirm('{{ _('Удалить вопрос?') }}')">
+                        <i class="bi bi-trash"></i> {{ _('Удалить') }}
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

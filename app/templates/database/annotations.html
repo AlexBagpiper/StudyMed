@@ -1,0 +1,50 @@
+<!-- app/templates/database/annotations.html -->
+{% extends "base.html" %}
+
+{% block title %}{{ _('Аннотации') }} - {{ get_app_name() }}{% endblock %}
+
+{% block content %}
+<h2>{{ _('Аннотации') }}</h2>
+
+<div class="table-responsive">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>{{ _('ID') }}</th>
+                <th>{{ _('Файл изображения') }}</th>
+                <th>{{ _('Файл аннотации') }}</th>
+                <th>{{ _('Формат') }}</th>
+                <th>{{ _('Метки') }}</th>
+                <th>{{ _('Дата создания') }}</th>
+                <th>{{ _('Действия') }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for annotation in annotations %}
+            <tr>
+                <td>{{ annotation.id }}</td>
+                <td>{{ annotation.filename }}</td>
+                <td>{{ annotation.annotation_file }}</td>
+                <td>
+                    <span class="badge bg-{{ 'primary' if annotation.format_type == 'coco' else 'success' }}">
+                        {{ _(annotation.format_type|upper) }}
+                    </span>
+                </td>
+                <td>{{ annotation.labels|from_json|join(', ')|truncate(30) }}</td>
+                <td>{{ annotation.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>
+                    <a href="{{ url_for('database.edit_record', table='annotations', id=annotation.id) }}" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-pencil"></i> {{ _('Редактировать') }}
+                    </a>
+                    <a href="{{ url_for('database.delete_record', table='annotations', id=annotation.id) }}"
+                       class="btn btn-sm btn-outline-danger"
+                       onclick="return confirm('{{ _('Удалить аннотацию?') }}')">
+                        <i class="bi bi-trash"></i> {{ _('Удалить') }}
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

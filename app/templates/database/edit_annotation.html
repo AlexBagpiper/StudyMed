@@ -1,0 +1,30 @@
+<!-- app/templates/database/edit_annotation.html -->
+{% extends "base.html" %}
+
+{% block title %}{{ _('Редактировать аннотацию') }} - {{ get_app_name() }}{% endblock %}
+
+{% block content %}
+<h2>{{ _('Редактировать аннотацию') }}</h2>
+
+<form method="POST" action="{{ url_for('database.edit_record', table='annotations', id=annotation.id) }}">
+    <div class="mb-3">
+        <label for="filename" class="form-label">{{ _('Файл изображения') }}</label>
+        <input type="text" class="form-control" id="filename" name="filename" value="{{ annotation.filename }}" required>
+    </div>
+    <div class="mb-3">
+        <label for="annotation_file" class="form-label">{{ _('Файл аннотации') }}</label>
+        <input type="text" class="form-control" id="annotation_file" name="annotation_file" value="{{ annotation.annotation_file }}" required>
+    </div>
+    <div class="mb-3">
+        <label for="format_type" class="form-label">{{ _('Формат') }}</label>
+        <select class="form-select" id="format_type" name="format_type">
+            <option value="coco" {{ 'selected' if annotation.format_type == 'coco' }}>COCO</option>
+            <option value="yolo" {{ 'selected' if annotation.format_type == 'yolo' }}>YOLO</option>
+        </select>
+    </div>
+    <div class="d-grid gap-2">
+        <button type="submit" class="btn btn-primary">{{ _('Сохранить') }}</button>
+        <a href="{{ url_for('database.view_annotations') }}" class="btn btn-secondary">{{ _('Отмена') }}</a>
+    </div>
+</form>
+{% endblock %}

@@ -1,0 +1,70 @@
+medical_testing_app/
+├── app.py                 # Главный файл приложения
+├── config.py              # Файл конфигурации
+├── requirements.txt       # Зависимости
+├── run.py                 # Файл для запуска приложения
+├── migrations/            # Миграции базы данных
+├── app/
+│   ├── __init__.py       # Инициализация приложения
+│   ├── models/           # Модели данных
+│   │   ├── __init__.py
+│   │   ├── user.py       # Модель пользователя
+│   │   ├── test.py       # Модель теста
+│   │   ├── question.py   # Модель вопроса
+│   │   └── annotation.py # Модель аннотации
+│   ├── routes/           # Маршруты приложения
+│   │   ├── __init__.py
+│   │   ├── auth.py       # Маршруты аутентификации
+│   │   ├── main.py       # Основные маршруты
+│   │   ├── admin.py      # Маршруты администратора
+│   │   ├── teacher.py    # Маршруты преподавателя
+│   │   └── student.py    # Маршруты студента
+│   ├── utils/            # Вспомогательные функции
+│   │   ├── __init__.py
+│   │   ├── contour_metrics.py  # Функции оценки контуров
+│   │   ├── image_processing.py # Функции обработки изображений
+│   │   └── themes.py     # Функции управления темами
+│   ├── static/           # Статические файлы
+│   │   ├── css/
+│   │   │   ├── themes/   # CSS файлы тем
+│   │   │   │   ├── default.css
+│   │   │   │   ├── blue.css
+│   │   │   │   └── custom.css
+│   │   │   └── main.css  # Основной CSS
+│   │   ├── js/
+│   │   │   └── main.js   # Основной JavaScript
+│   │   ├── uploads/      # Загруженные файлы
+│   │   └── images/       # Статические изображения
+│   └── templates/        # Шаблоны HTML
+│       ├── base.html     # Базовый шаблон
+│       ├── auth/
+│       │   ├── login.html
+│       │   └── register.html
+│       ├── main/
+│       │   ├── index.html
+│       │   └── dashboard.html
+│       ├── admin/
+│       │   ├── index.html
+│       │   └── manage_users.html
+│       ├── teacher/
+│       │   ├── index.html
+│       │   └── results.html
+│       ├── student/
+│       │   ├── test.html
+│       │   └── results.html
+│       └── shared/
+│           ├── header.html
+│           └── footer.html
+├── translations/     # Файлы локализации
+│   ├── ru/
+│   │   └── LC_MESSAGES/
+│   │       ├── messages.po
+│   │       └── messages.mo
+│   └── en/
+│       └── LC_MESSAGES/
+│           ├── messages.po
+│           └── messages.mo
+└── themes/               # JSON файлы тем
+    ├── default.json
+    ├── blue.json
+    └── custom.json

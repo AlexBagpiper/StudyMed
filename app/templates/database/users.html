@@ -1,0 +1,50 @@
+<!-- app/templates/database/users.html -->
+{% extends "base.html" %}
+
+{% block title %}{{ _('Пользователи') }} - {{ get_app_name() }}{% endblock %}
+
+{% block content %}
+<h2>{{ _('Пользователи') }}</h2>
+
+<div class="table-responsive">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>{{ _('ID') }}</th>
+                <th>{{ _('Имя пользователя') }}</th>
+                <th>{{ _('Роль') }}</th>
+                <th>{{ _('Язык') }}</th>
+                <th>{{ _('Тема') }}</th>
+                <th>{{ _('Дата создания') }}</th>
+                <th>{{ _('Действия') }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr>
+                <td>{{ user.id }}</td>
+                <td>{{ user.username }}</td>
+                <td>
+                    <span class="badge bg-{{ 'primary' if user.role == 'admin' else 'warning' if user.role == 'teacher' else 'secondary' }}">
+                        {{ _(user.role|title) }}
+                    </span>
+                </td>
+                <td>{{ user.language }}</td>
+                <td>{{ user.theme }}</td>
+                <td>{{ user.created_at.strftime('%Y-%m-%d %H:%M') if user.created_at else _('N/A') }}</td>
+                <td>
+                    <a href="{{ url_for('database.edit_record', table='users', id=user.id) }}" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-pencil"></i> {{ _('Редактировать') }}
+                    </a>
+                    <a href="{{ url_for('database.delete_record', table='users', id=user.id) }}"
+                       class="btn btn-sm btn-outline-danger"
+                       onclick="return confirm('{{ _('Удалить пользователя?') }}')">
+                        <i class="bi bi-trash"></i> {{ _('Удалить') }}
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

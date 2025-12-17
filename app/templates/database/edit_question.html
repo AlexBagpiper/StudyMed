@@ -1,0 +1,30 @@
+<!-- app/templates/database/edit_question.html -->
+{% extends "base.html" %}
+
+{% block title %}{{ _('Редактировать вопрос') }} - {{ get_app_name() }}{% endblock %}
+
+{% block content %}
+<h2>{{ _('Редактировать вопрос') }}</h2>
+
+<form method="POST" action="{{ url_for('database.edit_record', table='questions', id=question.id) }}">
+    <div class="mb-3">
+        <label for="question_text" class="form-label">{{ _('Текст вопроса') }}</label>
+        <textarea class="form-control" id="question_text" name="question_text" rows="3" required>{{ question.question_text }}</textarea>
+    </div>
+    <div class="mb-3">
+        <label for="question_type" class="form-label">{{ _('Тип вопроса') }}</label>
+        <select class="form-select" id="question_type" name="question_type">
+            <option value="open" {{ 'selected' if question.question_type == 'open' }}>{{ _('Открытый') }}</option>
+            <option value="graphic" {{ 'selected' if question.question_type == 'graphic' }}>{{ _('Графический') }}</option>
+        </select>
+    </div>
+    <div class="mb-3">
+        <label for="correct_answer" class="form-label">{{ _('Правильный ответ') }}</label>
+        <input type="text" class="form-control" id="correct_answer" name="correct_answer" value="{{ question.correct_answer }}">
+    </div>
+    <div class="d-grid gap-2">
+        <button type="submit" class="btn btn-primary">{{ _('Сохранить') }}</button>
+        <a href="{{ url_for('database.view_questions') }}" class="btn btn-secondary">{{ _('Отмена') }}</a>
+    </div>
+</form>
+{% endblock %}

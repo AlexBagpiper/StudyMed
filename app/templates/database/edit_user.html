@@ -1,0 +1,39 @@
+<!-- app/templates/database/edit_user.html -->
+{% extends "base.html" %}
+
+<!-- app/templates/database/edit_user.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<h2>{{ _('Редактировать пользователя') }}</h2>
+
+<form method="POST" action="{{ url_for('database.edit_record', table='users', id=user.id) }}">
+    <div class="mb-3">
+        <label for="username" class="form-label">{{ _('Имя пользователя') }}</label>
+        <input type="text" class="form-control" id="username" name="username" value="{{ user.username }}" required>
+    </div>
+    <div class="mb-3">
+        <label for="role" class="form-label">{{ _('Роль') }}</label>
+        <select class="form-select" id="role" name="role">
+            <option value="student" {{ 'selected' if user.role == 'student' }}>{{ _('Студент') }}</option>
+            <option value="teacher" {{ 'selected' if user.role == 'teacher' }}>{{ _('Преподаватель') }}</option>
+            <option value="admin" {{ 'selected' if user.role == 'admin' }}>{{ _('Администратор') }}</option>
+        </select>
+    </div>
+    <div class="mb-3">
+        <label for="language" class="form-label">{{ _('Язык') }}</label>
+        <select class="form-select" id="language" name="language">
+            <option value="ru" {{ 'selected' if user.language == 'ru' }}>Русский</option>
+            <option value="en" {{ 'selected' if user.language == 'en' }}>English</option>
+        </select>
+    </div>
+    <div class="mb-3">
+        <label for="theme" class="form-label">{{ _('Тема') }}</label>
+        <input type="text" class="form-control" id="theme" name="theme" value="{{ user.theme }}">
+    </div>
+    <div class="d-grid gap-2">
+        <button type="submit" class="btn btn-primary">{{ _('Сохранить') }}</button>
+        <a href="{{ url_for('database.view_users') }}" class="btn btn-secondary">{{ _('Отмена') }}</a>
+    </div>
+</form>
+{% endblock %}

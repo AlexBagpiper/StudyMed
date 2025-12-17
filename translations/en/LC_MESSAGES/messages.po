@@ -1,0 +1,469 @@
+# English translations for PROJECT.
+# Copyright (C) 2025 ORGANIZATION
+# This file is distributed under the same license as the PROJECT project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2025-12-16 13:29+1000\n"
+"PO-Revision-Date: 2025-12-16 11:38+1000\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: en\n"
+"Language-Team: en <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: app/routes/auth.py:49
+msgid "Неверные учетные данные"
+msgstr "Invalid credentials"
+
+#: app/routes/auth.py:73 app/templates/auth/register.html:151
+msgid "Пароли не совпадают"
+msgstr "Passwords do not match"
+
+#: app/routes/auth.py:79
+msgid "Пользователь с таким логином уже существует"
+msgstr "A user with this login already exists"
+
+#: app/routes/auth.py:96
+msgid "Регистрация прошла успешно"
+msgstr "Registration completed successfully"
+
+#: app/routes/auth.py:132
+msgid "Язык интерфейса изменен"
+msgstr "Interface language changed"
+
+#: app/routes/auth.py:135
+msgid "Неподдерживаемый язык"
+msgstr "Unsupported language"
+
+#: app/routes/auth.py:182
+msgid "Тема оформления изменена"
+msgstr "Theme changed"
+
+#: app/routes/auth.py:184
+msgid "Указанная тема не найдена"
+msgstr "Specified theme not found"
+
+#: app/routes/student.py:202
+msgid "Доступ запрещен"
+msgstr "Access denied"
+
+#: app/templates/auth/login.html:8 app/templates/auth/login.html:92
+#: app/templates/auth/register.html:121
+msgid "Вход"
+msgstr "Login"
+
+#: app/templates/auth/login.html:8 app/templates/auth/login.html:76
+#: app/templates/auth/register.html:8 app/templates/auth/register.html:76
+#: app/templates/student/tests.html:6
+msgid "Медицинская система тестирования"
+msgstr "Medical Testing System"
+
+#: app/templates/auth/login.html:77 app/templates/auth/register.html:77
+msgid ""
+"Проверьте свои медицинские знания с помощью интерактивных вопросов и "
+"графических тестов"
+msgstr ""
+"Test your medical knowledge using interactive questions and graphical "
+"tests"
+
+#: app/templates/auth/login.html:78 app/templates/auth/register.html:78
+msgid "© 2025 MedTest. Все права защищены."
+msgstr "© 2025 MedTest. All rights reserved."
+
+#: app/templates/auth/login.html:84
+msgid "Логин"
+msgstr "Login"
+
+#: app/templates/auth/login.html:88
+msgid "Пароль"
+msgstr "Password"
+
+#: app/templates/auth/login.html:97
+msgid "Нет аккаунта?"
+msgstr "Don’t have an account?"
+
+#: app/templates/auth/login.html:97 app/templates/auth/register.html:116
+msgid "Зарегистрироваться"
+msgstr "Register"
+
+#: app/templates/auth/register.html:8
+msgid "Регистрация"
+msgstr "Registration"
+
+#: app/templates/auth/register.html:85
+msgid "Фамилия *"
+msgstr "Surname *"
+
+#: app/templates/auth/register.html:89
+msgid "Имя *"
+msgstr "Name *"
+
+#: app/templates/auth/register.html:93
+msgid "Отчество"
+msgstr "Patronymic"
+
+#: app/templates/auth/register.html:98
+msgid "Номер группы"
+msgstr "Group number"
+
+#: app/templates/auth/register.html:102
+msgid "Логин *"
+msgstr "Login *"
+
+#: app/templates/auth/register.html:107
+msgid "Пароль *"
+msgstr "Password *"
+
+#: app/templates/auth/register.html:111
+msgid "Повторить пароль *"
+msgstr "Confirm password *"
+
+#: app/templates/auth/register.html:121
+msgid "Уже есть аккаунт?"
+msgstr "Already have an account?"
+
+#: app/templates/student/tests.html:6 app/templates/student/tests.html:77
+msgid "Доступные тесты"
+msgstr "Available tests"
+
+#: app/templates/student/tests.html:66
+msgid "Профиль"
+msgstr "Profile"
+
+#: app/templates/student/tests.html:68
+msgid "Выход"
+msgstr "Logout"
+
+#: app/templates/student/tests.html:89
+msgid "Вопросов"
+msgstr "Questions"
+
+#: app/templates/student/tests.html:90
+msgid "Создан"
+msgstr "Created"
+
+#: app/templates/student/tests.html:96
+msgid "Пройти тест"
+msgstr "Take test"
+
+#: app/templates/student/tests.html:106
+msgid "Нет доступных тестов"
+msgstr "No tests available"
+
+#: app/templates/student/tests.html:107
+msgid "В настоящее время нет доступных тестов для прохождения."
+msgstr "Currently, there are no tests available for taking."
+
+#: venv/Lib/site-packages/click/_termui_impl.py:613
+#, python-brace-format
+msgid "{editor}: Editing failed"
+msgstr "{editor}: Editing failed"
+
+#: venv/Lib/site-packages/click/_termui_impl.py:617
+#, python-brace-format
+msgid "{editor}: Editing failed: {e}"
+msgstr "{editor}: Editing failed: {e}"
+
+#: venv/Lib/site-packages/click/core.py:1114
+#: venv/Lib/site-packages/click/core.py:1151
+#, python-brace-format
+msgid "{text} {deprecated_message}"
+msgstr "{text} {deprecated_message}"
+
+#: venv/Lib/site-packages/click/core.py:1170
+msgid "Options"
+msgstr "Options"
+
+#: venv/Lib/site-packages/click/core.py:1245
+#, python-brace-format
+msgid "Got unexpected extra argument ({args})"
+msgid_plural "Got unexpected extra arguments ({args})"
+msgstr[0] "Got unexpected extra argument ({args})"
+msgstr[1] "Got unexpected extra arguments ({args})"
+
+#: venv/Lib/site-packages/click/core.py:1264
+#, python-brace-format
+msgid "DeprecationWarning: The command {name!r} is deprecated.{extra_message}"
+msgstr "DeprecationWarning: The command {name!r} is deprecated.{extra_message}"
+
+#: venv/Lib/site-packages/click/core.py:1448
+msgid "Aborted!"
+msgstr "Aborted!"
+
+#: venv/Lib/site-packages/click/core.py:1822
+msgid "Commands"
+msgstr "Commands"
+
+#: venv/Lib/site-packages/click/core.py:1853
+msgid "Missing command."
+msgstr "Missing command."
+
+#: venv/Lib/site-packages/click/core.py:1931
+#, python-brace-format
+msgid "No such command {name!r}."
+msgstr "No such command {name!r}."
+
+#: venv/Lib/site-packages/click/core.py:2355
+msgid "Value must be an iterable."
+msgstr "Value must be an iterable."
+
+#: venv/Lib/site-packages/click/core.py:2378
+#, python-brace-format
+msgid "Takes {nargs} values but 1 was given."
+msgid_plural "Takes {nargs} values but {len} were given."
+msgstr[0] "Takes {nargs} values but 1 was given."
+msgstr[1] "Takes {nargs} values but {len} were given."
+
+#: venv/Lib/site-packages/click/core.py:2567
+#, python-brace-format
+msgid ""
+"DeprecationWarning: The {param_type} {name!r} is "
+"deprecated.{extra_message}"
+msgstr ""
+"DeprecationWarning: The {param_type} {name!r} is "
+"deprecated.{extra_message}"
+
+#: venv/Lib/site-packages/click/core.py:3015
+#, python-brace-format
+msgid "env var: {var}"
+msgstr "env var: {var}"
+
+#: venv/Lib/site-packages/click/core.py:3018
+#, python-brace-format
+msgid "default: {default}"
+msgstr "default: {default}"
+
+#: venv/Lib/site-packages/click/core.py:3022
+msgid "required"
+msgstr "required"
+
+#: venv/Lib/site-packages/click/core.py:3082
+msgid "(dynamic)"
+msgstr "(dynamic)"
+
+#: venv/Lib/site-packages/click/decorators.py:465
+#, python-format
+msgid "%(prog)s, version %(version)s"
+msgstr "%(prog)s, version %(version)s"
+
+#: venv/Lib/site-packages/click/decorators.py:522
+msgid "Show the version and exit."
+msgstr "Show the version and exit."
+
+#: venv/Lib/site-packages/click/decorators.py:548
+msgid "Show this message and exit."
+msgstr "Show this message and exit."
+
+#: venv/Lib/site-packages/click/exceptions.py:50
+#: venv/Lib/site-packages/click/exceptions.py:89
+#, python-brace-format
+msgid "Error: {message}"
+msgstr "Error: {message}"
+
+#: venv/Lib/site-packages/click/exceptions.py:81
+#, python-brace-format
+msgid "Try '{command} {option}' for help."
+msgstr "Try '{command} {option}' for help."
+
+#: venv/Lib/site-packages/click/exceptions.py:130
+#, python-brace-format
+msgid "Invalid value: {message}"
+msgstr "Invalid value: {message}"
+
+#: venv/Lib/site-packages/click/exceptions.py:132
+#, python-brace-format
+msgid "Invalid value for {param_hint}: {message}"
+msgstr "Invalid value for {param_hint}: {message}"
+
+#: venv/Lib/site-packages/click/exceptions.py:190
+msgid "Missing argument"
+msgstr "Missing argument"
+
+#: venv/Lib/site-packages/click/exceptions.py:192
+msgid "Missing option"
+msgstr "Missing option"
+
+#: venv/Lib/site-packages/click/exceptions.py:194
+msgid "Missing parameter"
+msgstr "Missing parameter"
+
+#: venv/Lib/site-packages/click/exceptions.py:196
+#, python-brace-format
+msgid "Missing {param_type}"
+msgstr "Missing {param_type}"
+
+#: venv/Lib/site-packages/click/exceptions.py:203
+#, python-brace-format
+msgid "Missing parameter: {param_name}"
+msgstr "Missing parameter: {param_name}"
+
+#: venv/Lib/site-packages/click/exceptions.py:223
+#, python-brace-format
+msgid "No such option: {name}"
+msgstr "No such option: {name}"
+
+#: venv/Lib/site-packages/click/exceptions.py:235
+#, python-brace-format
+msgid "Did you mean {possibility}?"
+msgid_plural "(Possible options: {possibilities})"
+msgstr[0] "Did you mean {possibility}?"
+msgstr[1] "(Possible options: {possibilities})"
+
+#: venv/Lib/site-packages/click/exceptions.py:282
+msgid "unknown error"
+msgstr "unknown error"
+
+#: venv/Lib/site-packages/click/exceptions.py:289
+#, python-brace-format
+msgid "Could not open file {filename!r}: {message}"
+msgstr "Could not open file {filename!r}: {message}"
+
+#: venv/Lib/site-packages/click/parser.py:199
+#, python-brace-format
+msgid "Argument {name!r} takes {nargs} values."
+msgstr "Argument {name!r} takes {nargs} values."
+
+#: venv/Lib/site-packages/click/parser.py:381
+#, python-brace-format
+msgid "Option {name!r} does not take a value."
+msgstr "Option {name!r} does not take a value."
+
+#: venv/Lib/site-packages/click/parser.py:444
+#, python-brace-format
+msgid "Option {name!r} requires an argument."
+msgid_plural "Option {name!r} requires {nargs} arguments."
+msgstr[0] "Option {name!r} requires an argument."
+msgstr[1] "Option {name!r} requires {nargs} arguments."
+
+#: venv/Lib/site-packages/click/shell_completion.py:332
+msgid "Shell completion is not supported for Bash versions older than 4.4."
+msgstr "Shell completion is not supported for Bash versions older than 4.4."
+
+#: venv/Lib/site-packages/click/shell_completion.py:339
+msgid "Couldn't detect Bash version, shell completion is not supported."
+msgstr "Couldn't detect Bash version, shell completion is not supported."
+
+#: venv/Lib/site-packages/click/termui.py:165
+msgid "Repeat for confirmation"
+msgstr "Repeat for confirmation"
+
+#: venv/Lib/site-packages/click/termui.py:181
+msgid "Error: The value you entered was invalid."
+msgstr "Error: The value you entered was invalid."
+
+#: venv/Lib/site-packages/click/termui.py:183
+#, python-brace-format
+msgid "Error: {e.message}"
+msgstr "Error: {e.message}"
+
+#: venv/Lib/site-packages/click/termui.py:194
+msgid "Error: The two entered values do not match."
+msgstr "Error: The two entered values do not match."
+
+#: venv/Lib/site-packages/click/termui.py:253
+msgid "Error: invalid input"
+msgstr "Error: invalid input"
+
+#: venv/Lib/site-packages/click/termui.py:872
+msgid "Press any key to continue..."
+msgstr "Press any key to continue..."
+
+#: venv/Lib/site-packages/click/types.py:332
+#, python-brace-format
+msgid ""
+"Choose from:\n"
+"\t{choices}"
+msgstr ""
+"Choose from:\n"
+"\t{choices}"
+
+#: venv/Lib/site-packages/click/types.py:369
+#, python-brace-format
+msgid "{value!r} is not {choice}."
+msgid_plural "{value!r} is not one of {choices}."
+msgstr[0] "{value!r} is not {choice}."
+msgstr[1] "{value!r} is not one of {choices}."
+
+#: venv/Lib/site-packages/click/types.py:460
+#, python-brace-format
+msgid "{value!r} does not match the format {format}."
+msgid_plural "{value!r} does not match the formats {formats}."
+msgstr[0] "{value!r} does not match the format {format}."
+msgstr[1] "{value!r} does not match the formats {formats}."
+
+#: venv/Lib/site-packages/click/types.py:482
+#, python-brace-format
+msgid "{value!r} is not a valid {number_type}."
+msgstr "{value!r} is not a valid {number_type}."
+
+#: venv/Lib/site-packages/click/types.py:538
+#, python-brace-format
+msgid "{value} is not in the range {range}."
+msgstr "{value} is not in the range {range}."
+
+#: venv/Lib/site-packages/click/types.py:719
+#, python-brace-format
+msgid "{value!r} is not a valid boolean. Recognized values: {states}"
+msgstr "{value!r} is not a valid boolean. Recognized values: {states}"
+
+#: venv/Lib/site-packages/click/types.py:747
+#, python-brace-format
+msgid "{value!r} is not a valid UUID."
+msgstr "{value!r} is not a valid UUID."
+
+#: venv/Lib/site-packages/click/types.py:937
+msgid "file"
+msgstr "file"
+
+#: venv/Lib/site-packages/click/types.py:939
+msgid "directory"
+msgstr "directory"
+
+#: venv/Lib/site-packages/click/types.py:941
+msgid "path"
+msgstr "path"
+
+#: venv/Lib/site-packages/click/types.py:988
+#, python-brace-format
+msgid "{name} {filename!r} does not exist."
+msgstr "{name} {filename!r} does not exist."
+
+#: venv/Lib/site-packages/click/types.py:997
+#, python-brace-format
+msgid "{name} {filename!r} is a file."
+msgstr "{name} {filename!r} is a file."
+
+#: venv/Lib/site-packages/click/types.py:1005
+#, python-brace-format
+msgid "{name} {filename!r} is a directory."
+msgstr "{name} {filename!r} is a directory."
+
+#: venv/Lib/site-packages/click/types.py:1014
+#, python-brace-format
+msgid "{name} {filename!r} is not readable."
+msgstr "{name} {filename!r} is not readable."
+
+#: venv/Lib/site-packages/click/types.py:1023
+#, python-brace-format
+msgid "{name} {filename!r} is not writable."
+msgstr "{name} {filename!r} is not writable."
+
+#: venv/Lib/site-packages/click/types.py:1032
+#, python-brace-format
+msgid "{name} {filename!r} is not executable."
+msgstr "{name} {filename!r} is not executable."
+
+#: venv/Lib/site-packages/click/types.py:1099
+#, python-brace-format
+msgid "{len_type} values are required, but {len_value} was given."
+msgid_plural "{len_type} values are required, but {len_value} were given."
+msgstr[0] "{len_type} values are required, but {len_value} was given."
+msgstr[1] "{len_type} values are required, but {len_value} were given."
+
