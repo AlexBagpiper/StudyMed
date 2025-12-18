@@ -1,0 +1,116 @@
+<!-- app/templates/student/result_detail.html -->
+{% extends "base.html" %}
+
+{% block title %}{{ _('Результат теста') }} - {{ get_app_name() }}{% endblock %}
+
+{% block content %}
+<h2>{{ _('Результат теста') }}: {{ test.title if test else _('N/A') }}</h2>
+<p>{{ _('Балл') }}: {{ "%.2f"|format(result.score * 100) }}%</p>
+<p>{{ _('Дата завершения') }}: {{ result.completed_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+<p>{{ _('Продолжительность') }}: {{ result.duration_seconds or _('N/A') }}s</p>
+
+<hr>
+
+<h3>{{ _('Вопросы и ответы') }}</h3>
+
+{% for key, answer in answers.items() %}
+    {% if key.startswith('text_') %}
+        {% set q_id = key.split('_')[1] %}
+        {% set question = test.questions|selectattr('id', 'equalto', q_id)|first %}
+        {% if question %}
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5>{{ _('Текстовый вопрос') }} #{{ loop.index }}</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>{{ _('Вопрос') }}:</strong> {{ question.question_text }}</p>
+                    <p><strong>{{ _('Ваш ответ') }}:</strong> {{ answer or _('Не предоставлен') }}</p>
+                    <p><strong>{{ _('Правильный ответ') }}:</strong> {{ question.correct_answer or _('N/A') }}</p>
+                    {% if metrics[key] %}
+                        <p><strong>{{ _('Оценка') }}:</strong>
+                            {% if metrics[key].correct %}
+                                <span class="badge bg-success">{{ _('Правильно') }}</span>
+                            {% else %}
+                                <span class="badge bg-{{ 'warning' if metrics[key].match_type == 'partial' else 'danger' }}">{{ metrics[key].match_type|title }}</span>
+                                {% if metrics[key].partial_score %}
+                                    ({{ "%.2f"|format(metrics[key].partial_score * 100) }}%)
+                                {% endif %}
+                            {% endif %}
+                        </p>
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
+    {% elif key.startswith('graphic_') %}
+        {% set q_id = key.split('_')[1] %}
+        {% set question = test.questions|selectattr('id', 'equalto', q_id)|first %}
+        {% if question %}
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5>{{ _('Графический вопрос') }} #{{ loop.index }}</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>{{ _('Вопрос') }}:</strong> {{ question.question_text }}</p>
+                    {% if answer %}
+                        <p><strong>{{ _('Ваш контур') }}:</strong></p>
+                        <!-- Здесь можно отобразить изображение с нарисованным контуром -->
+                        {% if question.annotation %}
+                            <img src="{{ url_for('static', filename='uploads/' + question.annotation.filename) }}" alt="{{ _('Изображение вопроса') }}" style="max-width: 100%;">
+                            <!-- Код для отображения контура на изображении -->
+                            <canvas id="result_canvas_{{ question.id }}" width="600" height="400" style="display: none;"></canvas>
+                            <script>
+                                // Логика отображения контура на изображении (упрощенная)
+                                const img = new Image();
+                                img.src = "{{ url_for('static', filename='uploads/' + question.annotation.filename) }}";
+                                img.onload = function() {
+                                    const canvas = document.getElementById('result_canvas_{{ question.id }}');
+                                    const ctx = canvas.getContext('2d');
+                                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                                    // Рисуем контур из ответа
+                                    const userContour = {{ answer|tojson }};
+                                    if(userContour && userContour.points && userContour.points.length > 0) {
+                                        ctx.beginPath();
+                                        ctx.strokeStyle = 'red'; // Цвет пользователя
+                                        ctx.lineWidth = 2;
+                                        ctx.moveTo(userContour.points[0].x, userContour.points[0].y);
+                                        for(let i = 1; i < userContour.points.length; i++) {
+                                            ctx.lineTo(userContour.points[i].x, userContour.points[i].y);
+                                        }
+                                        ctx.closePath();
+                                        ctx.stroke();
+                                    }
+
+                                    // Рисуем эталонный контур (если доступен)
+                                    const correctAnnotation = {{ question.annotation.labels|from_json|tojson if question.annotation else '{}' }};
+                                    // Для простоты, предположим, что correctAnnotation содержит эталонный контур
+                                    // В реальности, это может быть сложнее, требовать обработки файла аннотации
+                                    // if(correctAnnotation && correctAnnotation.contours) { ... }
+                                    // ctx.strokeStyle = 'green'; // Цвет эталона
+                                    // ...
+                                };
+                            </script>
+                        {% endif %}
+                    {% else %}
+                        <p><strong>{{ _('Ваш ответ') }}:</strong> {{ _('Контур не нарисован') }}</p>
+                    {% endif %}
+                    {% if metrics[key] %}
+                        <p><strong>{{ _('Оценка') }}:</strong> {{ "%.2f"|format(metrics[key].comprehensive_score * 100) }}%</p>
+                        <details>
+                            <summary>{{ _('Подробнее') }}</summary>
+                            <ul>
+                                <li>{{ _('IoU') }}: {{ "%.3f"|format(metrics[key].iou) }}</li>
+                                <li>{{ _('Совпадение границ') }}: {{ "%.3f"|format(metrics[key].boundary_match) }}</li>
+                                <li>{{ _('Наличие') }}: {{ "%.3f"|format(metrics[key].presence_score) }}</li>
+                                <li>{{ _('Совпадение метки') }}: {{ "%.3f"|format(metrics[key].label_match) }}</li>
+                            </ul>
+                        </details>
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
+    {% endif %}
+{% endfor %}
+
+<a href="{{ url_for('student.view_results') }}" class="btn btn-secondary">{{ _('Назад к результатам') }}</a>
+{% endblock %}

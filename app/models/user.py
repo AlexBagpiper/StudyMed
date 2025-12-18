@@ -7,7 +7,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from app import db
 from datetime import datetime
-from sqlalchemy import String, Integer, DateTime, ForeignKey
+from sqlalchemy import String, Integer, DateTime, Float, Text, ForeignKey
 import re
 
 class User(UserMixin, db.Model):
@@ -46,8 +46,10 @@ class User(UserMixin, db.Model):
     created_at = db.Column(DateTime, default=datetime.utcnow)
 
     # Связи с другими моделями
-    created_tests = db.relationship('Test', backref='creator', lazy=True, foreign_keys='Test.creator_id')
-    test_results = db.relationship('TestResult', backref='user', lazy=True)
+    # ИСПРАВЛЕНО: back_populates='creator' - указывает на атрибут 'creator' в Test
+    created_tests = db.relationship('Test', back_populates='creator', lazy=True, foreign_keys='Test.creator_id')
+    # ИСПРАВЛЕНО: back_populates='user' - указывает на атрибут 'user' в TestResult
+    test_results = db.relationship('TestResult', back_populates='user', lazy=True)
 
     def __repr__(self):
         """

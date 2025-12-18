@@ -5,6 +5,7 @@
 """
 from flask_sqlalchemy import SQLAlchemy
 from app import db
+from sqlalchemy import String, Integer, Text, ForeignKey
 
 class Question(db.Model):
     """
@@ -22,11 +23,16 @@ class Question(db.Model):
     __tablename__ = 'questions'
 
     # Основные поля
-    id = db.Column(db.Integer, primary_key=True)
-    test_id = db.Column(db.Integer, db.ForeignKey('tests.id'), nullable=False)
-    question_text = db.Column(db.Text, nullable=False)
-    question_type = db.Column(db.String(20), default='open')  # 'open', 'graphic'
-    correct_answer = db.Column(db.Text)  # Для открытых вопросов: текст, для графических: ID аннотации
+    id = db.Column(Integer, primary_key=True)
+    test_id = db.Column(Integer, ForeignKey('tests.id'), nullable=False)
+    question_text = db.Column(Text, nullable=False)
+    question_type = db.Column(String(20), default='open')  # 'open', 'graphic'
+    # Для открытых вопросов: текст, для графических: ID аннотации
+    correct_answer = db.Column(Text)
+
+    # Связи с другими моделями
+    # ИСПРАВЛЕНО: back_populates='questions' - указывает на атрибут 'questions' в Test
+    test = db.relationship('Test', back_populates='questions', lazy=True)
 
     def __repr__(self):
         """

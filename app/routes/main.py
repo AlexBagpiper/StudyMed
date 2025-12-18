@@ -31,7 +31,8 @@ def index():
         # Если пользователь не авторизован, перенаправляем на страницу входа
         return redirect(url_for('auth.login'))
 
-@bp.route('/dashboard')
+#Пока погасим эту ссылку в нав панели
+'''@bp.route('/dashboard')
 @login_required
 def dashboard():
     """
@@ -42,7 +43,7 @@ def dashboard():
     elif current_user.role == 'teacher':
         return redirect(url_for('teacher.index'))
     else:  # student
-        return redirect(url_for('student.view_tests'))
+        return redirect(url_for('student.view_tests'))'''
 
 @bp.route('/profile', methods=['GET', 'POST'])
 @login_required

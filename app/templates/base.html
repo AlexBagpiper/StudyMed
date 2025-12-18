@@ -100,21 +100,6 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('main.index') }}">{{ _('Главная') }}</a>
                     </li>
-                    {% if current_user.is_authenticated %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('main.dashboard') }}">{{ _('Панель') }}</a>
-                        </li>
-                        {% if current_user.role == 'admin' %}
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('admin.index') }}">{{ _('Админ') }}</a>
-                            </li>
-                        {% endif %}
-                        {% if current_user.role in ['admin', 'teacher'] %}
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ url_for('teacher.index') }}">{{ _('Преподаватель') }}</a>
-                            </li>
-                        {% endif %}
-                    {% endif %}
                 </ul>
                 <ul class="navbar-nav">
                     {% if current_user.is_authenticated %}

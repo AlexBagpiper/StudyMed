@@ -1,0 +1,279 @@
+<!-- app/templates/student/take_test.html -->
+{% extends "base.html" %}
+
+{% block title %}{{ test.title }} - {{ get_app_name() }}{% endblock %}
+
+{% block content %}
+<h2>{{ test.title }}</h2>
+<p>{{ test.description }}</p>
+
+<form method="POST" action="{{ url_for('student.submit_test', test_id=test.id) }}">
+    {% for question in text_questions %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">{{ question.question_text }}</h5>
+                <textarea class="form-control" name="text_{{ question.id }}" rows="3" required></textarea>
+            </div>
+        </div>
+    {% endfor %}
+
+    {% for question in graphic_questions %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">{{ question.question_text }}</h5>
+                {% if question.annotation %}
+                    <div class="canvas-container">
+                        <img id="image_{{ question.id }}" src="{{ url_for('static', filename='uploads/' + question.annotation.filename) }}" style="display:none;" onload="initCanvas({{ question.id }}, this)">
+                        <canvas id="canvas_{{ question.id }}" width="600" height="400"></canvas>
+                    </div>
+                    <div class="mt-3">
+                        <div class="d-flex flex-wrap gap-2 contour-tool">
+                            <button type="button" class="btn btn-outline-primary" onclick="setTool('draw', {{ question.id }})">Рисовать</button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="setTool('edit', {{ question.id }})">Редактировать</button>
+                            <button type="button" class="btn btn-outline-danger" onclick="setTool('delete', {{ question.id }})">Удалить</button>
+                            <button type="button" class="btn btn-outline-info" onclick="clearCanvas({{ question.id }})">Очистить</button>
+                        </div>
+                        <div class="contour-list mt-2">
+                            <h6>Обнаруженные контуры:</h6>
+                            <ul id="contour_list_{{ question.id }}" class="list-group"></ul>
+                        </div>
+                    </div>
+                    <input type="hidden" name="graphic_{{ question.id }}" id="result_{{ question.id }}" value="">
+                {% else %}
+                    <p class="text-warning">Предупреждение: Аннотация для этого вопроса не найдена.</p>
+                {% endif %}
+            </div>
+        </div>
+    {% endfor %}
+
+    <button type="submit" class="btn btn-success">{{ _('Отправить тест') }}</button>
+</form>
+
+<script>
+    // Хранение состояния рисования для каждого холста
+    const drawingStates = {};
+
+    function initCanvas(questionId, imgElement) {
+        const canvas = document.getElementById(`canvas_${questionId}`);
+        const ctx = canvas.getContext('2d');
+
+        // Рисование изображения на холсте
+        ctx.drawImage(imgElement, 0, 0, canvas.width, canvas.height);
+
+        // Инициализация состояния рисования
+        drawingStates[questionId] = {
+            tool: 'draw',
+            isDrawing: false,
+            currentContour: [],
+            contours: [],
+            selectedContour: null,
+            tempPoint: null
+        };
+
+        // Добавление обработчиков событий
+        canvas.addEventListener('mousedown', (e) => startDrawing(e, questionId));
+        canvas.addEventListener('mousemove', (e) => draw(e, questionId));
+        canvas.addEventListener('mouseup', () => stopDrawing(questionId));
+        canvas.addEventListener('mouseout', () => stopDrawing(questionId));
+    }
+
+    function setTool(tool, questionId) {
+        drawingStates[questionId].tool = tool;
+    }
+
+    function startDrawing(e, questionId) {
+        const canvas = document.getElementById(`canvas_${questionId}`);
+        const ctx = canvas.getContext('2d');
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        const state = drawingStates[questionId];
+
+        switch(state.tool) {
+            case 'draw':
+                state.isDrawing = true;
+                state.currentContour = [{x: x, y: y}];
+                break;
+
+            case 'edit':
+                // Проверка клика рядом с существующим контуром
+                for(let i = 0; i < state.contours.length; i++) {
+                    const contour = state.contours[i];
+                    for(const point of contour.points) {
+                        const distance = Math.sqrt(Math.pow(point.x - x, 2) + Math.pow(point.y - y, 2));
+                        if(distance < 10) { // В пределах 10 пикселей
+                            state.selectedContour = i;
+                            state.tempPoint = {x: x, y: y};
+                            break;
+                        }
+                    }
+                    if(state.selectedContour !== null) break;
+                }
+                break;
+
+            case 'delete':
+                // Найти и удалить контур при клике на него
+                for(let i = 0; i < state.contours.length; i++) {
+                    const contour = state.contours[i];
+                    const contourPath = new Path2D();
+                    if(contour.points.length > 0) {
+                        contourPath.moveTo(contour.points[0].x, contour.points[0].y);
+                        for(let j = 1; j < contour.points.length; j++) {
+                            contourPath.lineTo(contour.points[j].x, contour.points[j].y);
+                        }
+                        contourPath.closePath();
+                    }
+
+                    if(ctx.isPointInPath(contourPath, x, y)) {
+                        state.contours.splice(i, 1);
+                        redrawCanvas(questionId);
+                        updateContourList(questionId);
+                        break;
+                    }
+                }
+                break;
+        }
+    }
+
+    function draw(e, questionId) {
+        const canvas = document.getElementById(`canvas_${questionId}`);
+        const ctx = canvas.getContext('2d');
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        const state = drawingStates[questionId];
+
+        if(state.isDrawing && state.tool === 'draw') {
+            state.currentContour.push({x: x, y: y});
+
+            // Перерисовка холста для отображения текущего контура
+            redrawCanvas(questionId);
+
+            // Рисование текущего контура
+            ctx.beginPath();
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.moveTo(state.currentContour[0].x, state.currentContour[0].y);
+            for(let i = 1; i < state.currentContour.length; i++) {
+                ctx.lineTo(state.currentContour[i].x, state.currentContour[i].y);
+            }
+            ctx.stroke();
+        } else if(state.selectedContour !== null && state.tool === 'edit') {
+            // Перемещение выбранной точки
+            const dx = x - state.tempPoint.x;
+            const dy = y - state.tempPoint.y;
+
+            // Обновление точек контура
+            for(const point of state.contours[state.selectedContour].points) {
+                const distance = Math.sqrt(Math.pow(point.x - state.tempPoint.x, 2) + Math.pow(point.y - state.tempPoint.y, 2));
+                if(distance < 10) {
+                    point.x += dx;
+                    point.y += dy;
+                }
+            }
+
+            state.tempPoint = {x: x, y: y};
+            redrawCanvas(questionId);
+        }
+    }
+
+    function stopDrawing(questionId) {
+        const state = drawingStates[questionId];
+
+        if(state.isDrawing && state.tool === 'draw' && state.currentContour.length > 2) {
+            // Автоматическое замыкание контура
+            state.currentContour.push(state.currentContour[0]);
+
+            // Добавление контура в список
+            state.contours.push({
+                points: [...state.currentContour],
+                label: `Контур ${state.contours.length}`
+            });
+
+            state.isDrawing = false;
+            state.currentContour = [];
+
+            redrawCanvas(questionId);
+            updateContourList(questionId);
+        }
+
+        state.selectedContour = null;
+    }
+
+    function redrawCanvas(questionId) {
+        const canvas = document.getElementById(`canvas_${questionId}`);
+        const ctx = canvas.getContext('2d');
+        const img = document.getElementById(`image_${questionId}`);
+
+        // Очистка холста и перерисовка изображения
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // Рисование сохраненных контуров
+        for(const contour of drawingStates[questionId].contours) {
+            ctx.beginPath();
+            ctx.strokeStyle = 'blue';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([]);
+
+            if(contour.points.length > 0) {
+                ctx.moveTo(contour.points[0].x, contour.points[0].y);
+                for(let i = 1; i < contour.points.length; i++) {
+                    ctx.lineTo(contour.points[i].x, contour.points[i].y);
+                }
+                ctx.closePath();
+                ctx.stroke();
+            }
+        }
+    }
+
+    function clearCanvas(questionId) {
+        if(confirm('Вы уверены, что хотите очистить холст? Все контуры будут удалены.')) {
+            drawingStates[questionId].contours = [];
+            drawingStates[questionId].currentContour = [];
+            redrawCanvas(questionId);
+            updateContourList(questionId);
+        }
+    }
+
+    function updateContourList(questionId) {
+        const listElement = document.getElementById(`contour_list_${questionId}`);
+        const state = drawingStates[questionId];
+
+        listElement.innerHTML = '';
+
+        state.contours.forEach((contour, index) => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item d-flex justify-content-between align-items-center';
+            li.innerHTML = `
+                <span>${contour.label} (${contour.points.length} точек)</span>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteContour(${questionId}, ${index})">
+                    <i class="bi bi-trash"></i>
+                </button>
+            `;
+            listElement.appendChild(li);
+        });
+
+        // Обновление скрытого поля с данными контуров
+        document.getElementById(`result_${questionId}`).value = JSON.stringify(state.contours);
+    }
+
+    function deleteContour(questionId, index) {
+        if(confirm('Вы уверены, что хотите удалить этот контур?')) {
+            drawingStates[questionId].contours.splice(index, 1);
+            redrawCanvas(questionId);
+            updateContourList(questionId);
+        }
+    }
+
+    // Обновление скрытого поля при отправке формы
+    document.querySelector('form').addEventListener('submit', function(e) {
+        for(const questionId in drawingStates) {
+            const contours = drawingStates[questionId].contours;
+            document.getElementById(`result_${questionId}`).value = JSON.stringify(contours);
+        }
+    });
+</script>
+{% endblock %}

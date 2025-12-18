@@ -1,179 +1,256 @@
-#!/usr/bin/env python3
+# app/routes/database.py (обновленный)
 """
-Автономный скрипт для создания файла базы данных SQLite с нужной структурой.
-
-Этот скрипт:
-1. Определяет модели SQLAlchemy для таблиц приложения.
-2. Создает экземпляр SQLAlchemy Engine.
-3. Создает все таблицы, определенные в моделях, в новом файле базы данных.
-4. Добавляет администратора с логином 'admin' и паролем 'admin'.
+Маршруты управления базой данных приложения медицинского тестирования
+Содержит инструменты просмотра и редактирования данных
 """
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
+from flask_login import login_required, current_user
+from app import db
+from app.models.user import User
+from app.models.test import Test
+from app.models.question import Question
+from app.models.annotation import ImageAnnotation, TestResult
+from config import Config
 import os
-from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, Text, Float, DateTime, ForeignKey, func
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+import json
 
-# Имя файла базы данных
-DB_FILENAME = 'medical_tests.db'
+# Создание Blueprint для маршрутов управления базой данных
+bp = Blueprint('database', __name__)
 
-# Создаем базовый класс для моделей
-Base = declarative_base()
-
-# --- Определение моделей ---
-
-class User(Base):
+@bp.route('/database')
+@login_required
+def index():
     """
-    Модель пользователя системы
+    Главная страница управления базой данных - отображает статистику
     """
-    __tablename__ = 'users'
+    if current_user.role != 'admin':
+        flash('Доступ запрещен')
+        return redirect(url_for('main.index'))
 
-    id = Column(Integer, primary_key=True)
-    username = Column(String(80), unique=True, nullable=False)
-    password_hash = Column(String(120), nullable=False)
-    role = Column(String(20), default='student')  # 'admin', 'teacher', 'student'
-    language = Column(String(5), default='ru')  # Язык интерфейса
-    theme = Column(String(50), default='default')  # Тема оформления
-    first_name = Column(String(100))  # Имя (для студентов)
-    last_name = Column(String(100))   # Фамилия (для студентов)
-    middle_name = Column(String(100)) # Отчество (для студентов)
-    group_number = Column(String(50)) # Номер группы (для студентов)
-    created_at = Column(DateTime, default=func.current_timestamp())
+    # Получение статистики (без вызова связанных объектов, которые могут вызвать ошибку)
+    users_count = db.session.query(User.id).count()
+    tests_count = db.session.query(Test.id).count()
+    questions_count = db.session.query(Question.id).count()
+    annotations_count = db.session.query(ImageAnnotation.id).count()
+    results_count = db.session.query(TestResult.id).count()
 
-    # Связи с другими моделями
-    created_tests = relationship('Test', back_populates='creator', foreign_keys='Test.creator_id')
-    test_results = relationship('TestResult', back_populates='user')
+    return render_template('database/index.html',
+                          users_count=users_count,
+                          tests_count=tests_count,
+                          questions_count=questions_count,
+                          annotations_count=annotations_count,
+                          results_count=results_count)
 
-    def __repr__(self):
-        return f'<User {self.username} ({self.role}>)'
-
-
-class Test(Base):
+@bp.route('/database/users')
+@login_required
+def view_users():
     """
-    Модель теста
+    Маршрут для просмотра списка пользователей
     """
-    __tablename__ = 'tests'
+    if current_user.role != 'admin':
+        flash('Доступ запрещен')
+        return redirect(url_for('main.index'))
 
-    id = Column(Integer, primary_key=True)
-    title = Column(String(200), nullable=False)
-    description = Column(Text)
-    creator_id = Column(Integer, ForeignKey('users.id'))  # ID создателя теста
-    created_at = Column(DateTime, default=func.current_timestamp())
+    # Загрузка пользователей без связанных объектов для избежания ошибок
+    users = db.session.query(User.id, User.username, User.role, User.language, User.theme, User.created_at).all()
+    # Если нужно отобразить количество связанных записей, можно использовать подзапросы
+    # Но для простого просмотра списка это не обязательно
+    return render_template('database/users.html', users=users)
 
-    # Связи с другими моделями
-    creator = relationship('User', back_populates='created_tests')
-    questions = relationship('Question', back_populates='test')
-    results = relationship('TestResult', back_populates='test')
-
-
-class Question(Base):
+@bp.route('/database/tests')
+@login_required
+def view_tests():
     """
-    Модель вопроса
+    Маршрут для просмотра списка тестов
     """
-    __tablename__ = 'questions'
+    if current_user.role != 'admin':
+        flash('Доступ запрещен')
+        return redirect(url_for('main.index'))
 
-    id = Column(Integer, primary_key=True)
-    test_id = Column(Integer, ForeignKey('tests.id'), nullable=False)
-    question_text = Column(Text, nullable=False)
-    question_type = Column(String(20), default='open')  # 'open', 'graphic'
-    correct_answer = Column(Text)  # Для открытых вопросов: текст, для графических: ID аннотации
+    # Загрузка тестов без связанных объектов для избежания ошибок
+    tests = db.session.query(Test.id, Test.title, Test.description, Test.created_at).all()
+    return render_template('database/tests.html', tests=tests)
 
-    # Связи с другими моделями
-    test = relationship('Test', back_populates='questions')
-
-
-class ImageAnnotation(Base):
+@bp.route('/database/questions')
+@login_required
+def view_questions():
     """
-    Модель аннотации изображения
+    Маршрут для просмотра списка вопросов
     """
-    __tablename__ = 'image_annotations'
+    if current_user.role != 'admin':
+        flash('Доступ запрещен')
+        return redirect(url_for('main.index'))
 
-    id = Column(Integer, primary_key=True)
-    filename = Column(String(200), nullable=False)
-    annotation_file = Column(String(200))  # Путь к файлу аннотации (JSON или TXT)
-    format_type = Column(String(10), default='coco')  # 'coco' или 'yolo'
-    labels = Column(Text)  # JSON строка с метками
-    created_at = Column(DateTime, default=func.current_timestamp())
+    # Загрузка вопросов с информацией о тесте (без полной загрузки объекта Test)
+    questions = db.session.query(
+        Question.id,
+        Question.test_id,
+        Question.question_text,
+        Question.question_type,
+        Test.title.label('test_title') # Подзапрос для получения названия теста
+    ).outerjoin(Test).all() # outerjoin для включения вопросов без теста (если такие есть)
+    return render_template('database/questions.html', questions=questions)
 
-
-class TestResult(Base):
+@bp.route('/database/annotations')
+@login_required
+def view_annotations():
     """
-    Модель результата теста
+    Маршрут для просмотра списка аннотаций
     """
-    __tablename__ = 'test_results'
+    if current_user.role != 'admin':
+        flash('Доступ запрещен')
+        return redirect(url_for('main.index'))
 
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    test_id = Column(Integer, ForeignKey('tests.id'), nullable=False)
-    score = Column(Float, nullable=False)
-    answers_json = Column(Text)  # JSON строка с ответами
-    metrics_json = Column(Text)  # JSON строка с метриками
-    started_at = Column(DateTime)  # Время начала теста
-    completed_at = Column(DateTime, default=func.current_timestamp())  # Время завершения теста
-    duration_seconds = Column(Integer)  # Продолжительность в секундах
+    annotations = ImageAnnotation.query.all()
+    return render_template('database/annotations.html', annotations=annotations)
 
-    # Связи с другими моделями
-    user = relationship('User', back_populates='test_results')
-    test = relationship('Test', back_populates='results')
-
-# --- Основная логика скрипта ---
-
-def main():
+@bp.route('/database/results')
+@login_required
+def view_results():
     """
-    Основная функция скрипта.
+    Маршрут для просмотра списка результатов тестов
     """
-    print(f"Проверка наличия файла базы данных: {DB_FILENAME}")
+    if current_user.role != 'admin':
+        flash('Доступ запрещен')
+        return redirect(url_for('main.index'))
 
-    if os.path.exists(DB_FILENAME):
-        print(f"ПРЕДУПРЕЖДЕНИЕ: Файл базы данных '{DB_FILENAME}' уже существует.")
-        response = input("Вы хотите перезаписать его? (y/N): ")
-        if response.lower() != 'y':
-            print("Создание отменено.")
-            return
-        else:
-            print(f"Удаление старого файла базы данных...")
-            os.remove(DB_FILENAME)
+    # Загрузка результатов с информацией о пользователе и тесте (без полной загрузки объектов)
+    results = db.session.query(
+        TestResult.id,
+        TestResult.user_id,
+        TestResult.test_id,
+        TestResult.score,
+        TestResult.completed_at,
+        TestResult.duration_seconds,
+        User.username.label('user_username'), # Подзапрос для получения имени пользователя
+        Test.title.label('test_title')        # Подзапрос для получения названия теста
+    ).outerjoin(User).outerjoin(Test).all() # outerjoin для включения результатов без пользователя или теста (если такие есть)
 
-    print(f"Создание нового файла базы данных: {DB_FILENAME}")
-    # Создаем SQLAlchemy engine, указывающий на новый файл
-    engine = create_engine(f'sqlite:///{DB_FILENAME}', echo=True) # echo=True для отладки
+    return render_template('database/results.html', results=results)
 
-    print("Создание таблиц...")
-    # Создаем все таблицы, определенные в Base
-    Base.metadata.create_all(engine)
-    print("Таблицы созданы успешно.")
+@bp.route('/database/delete/<table>/<int:id>')
+@login_required
+def delete_record(table, id):
+    """
+    Маршрут для удаления записи из таблицы
 
-    print("Создание сессии и добавление администратора...")
-    # Создаем сессию
-    Session = sessionmaker(bind=engine)
-    session = Session()
-
-    # Проверяем, существует ли уже пользователь 'admin'
-    admin_user = session.query(User).filter_by(username='admin').first()
-    if admin_user:
-        print("Пользователь 'admin' уже существует. Обновляем данные...")
-        admin_user.password_hash = 'admin'  # Обновляем пароль
-        admin_user.role = 'admin'           # Обновляем роль
-    else:
-        print("Создание нового пользователя 'admin'...")
-        admin_user = User(
-            username='admin',
-            password_hash='admin',
-            role='admin'
-        )
-        session.add(admin_user)
+    Args:
+        table (str): Название таблицы
+        id (int): ID записи
+    """
+    if current_user.role != 'admin':
+        flash('Доступ запрещен')
+        return redirect(url_for('main.index'))
 
     try:
-        session.commit()
-        print("Пользователь 'admin' успешно добавлен/обновлен.")
+        if table == 'users':
+            record = User.query.get_or_404(id)
+            db.session.delete(record)
+        elif table == 'tests':
+            record = Test.query.get_or_404(id)
+            db.session.delete(record)
+        elif table == 'questions':
+            record = Question.query.get_or_404(id)
+            db.session.delete(record)
+        elif table == 'annotations':
+            record = ImageAnnotation.query.get_or_404(id)
+            db.session.delete(record)
+        elif table == 'results':
+            record = TestResult.query.get_or_404(id)
+            db.session.delete(record)
+        else:
+            flash('Неверная таблица')
+            return redirect(url_for('database.index'))
+
+        db.session.commit()
+        flash(f'Запись из таблицы {table} успешно удалена')
     except Exception as e:
-        session.rollback()
-        print(f"Ошибка при добавлении пользователя: {e}")
-    finally:
-        session.close()
+        db.session.rollback()
+        flash(f'Ошибка при удалении: {str(e)}')
 
-    print(f"База данных '{DB_FILENAME}' успешно создана и инициализирована.")
+    return redirect(url_for(f'database.view_{table}'))
 
+@bp.route('/database/edit/<table>/<int:id>', methods=['GET', 'POST'])
+@login_required
+def edit_record(table, id):
+    """
+    Маршрут для редактирования записи в таблице
 
-if __name__ == "__main__":
-    main()
+    Args:
+        table (str): Название таблицы
+        id (int): ID записи
+    """
+    if current_user.role != 'admin':
+        flash('Доступ запрещен')
+        return redirect(url_for('main.index'))
+
+    if request.method == 'POST':
+        try:
+            if table == 'users':
+                record = User.query.get_or_404(id)
+                record.username = request.form['username']
+                record.role = request.form['role']
+                record.language = request.form['language']
+                record.theme = request.form['theme']
+            elif table == 'tests':
+                record = Test.query.get_or_404(id)
+                record.title = request.form['title']
+                record.description = request.form['description']
+            elif table == 'questions':
+                record = Question.query.get_or_404(id)
+                record.question_text = request.form['question_text']
+                record.question_type = request.form['question_type']
+                record.correct_answer = request.form['correct_answer']
+            elif table == 'annotations':
+                record = ImageAnnotation.query.get_or_404(id)
+                record.filename = request.form['filename']
+                record.annotation_file = request.form['annotation_file']
+                record.format_type = request.form['format_type']
+            elif table == 'results':
+                record = TestResult.query.get_or_404(id)
+                record.score = float(request.form['score'])
+                record.answers_json = request.form['answers_json']
+                record.metrics_json = request.form['metrics_json']
+                # Обработка started_at и completed_at если они передаются
+                started_at_str = request.form.get('started_at')
+                completed_at_str = request.form.get('completed_at')
+                if started_at_str:
+                    record.started_at = datetime.fromisoformat(started_at_str.replace('Z', '+00:00'))
+                if completed_at_str:
+                    record.completed_at = datetime.fromisoformat(completed_at_str.replace('Z', '+00:00'))
+                record.duration_seconds = int(request.form.get('duration_seconds', 0))
+            else:
+                flash('Неверная таблица')
+                return redirect(url_for('database.index'))
+
+            db.session.commit()
+            flash(f'Запись в таблице {table} успешно обновлена')
+            return redirect(url_for(f'database.view_{table}'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Ошибка при обновлении: {str(e)}')
+
+    # Отображение формы редактирования
+    if table == 'users':
+        record = User.query.get_or_404(id)
+        return render_template('database/edit_user.html', user=record)
+    elif table == 'tests':
+        record = Test.query.get_or_404(id)
+        return render_template('database/edit_test.html', test=record)
+    elif table == 'questions':
+        record = Question.query.get_or_404(id)
+        # Загружаем связанный тест для отображения в форме
+        test = Test.query.get(record.test_id) if record.test_id else None
+        return render_template('database/edit_question.html', question=record, test=test)
+    elif table == 'annotations':
+        record = ImageAnnotation.query.get_or_404(id)
+        return render_template('database/edit_annotation.html', annotation=record)
+    elif table == 'results':
+        record = TestResult.query.get_or_404(id)
+        # Загружаем связанные пользователь и тест для отображения в форме
+        user = User.query.get(record.user_id) if record.user_id else None
+        test = Test.query.get(record.test_id) if record.test_id else None
+        return render_template('database/edit_result.html', result=record, user=user, test=test)
+    else:
+        flash('Неверная таблица')
+        return redirect(url_for('database.index'))
