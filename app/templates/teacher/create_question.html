@@ -1,0 +1,77 @@
+<!-- app/templates/teacher/create_question.html -->
+{% extends "base.html" %}
+
+{% block title %}Создать вопрос - Панель преподавателя{% endblock %}
+
+{% block content %}
+<h2>Создать новый вопрос</h2>
+
+<form method="POST" action="{{ url_for('teacher.create_question') }}" enctype="multipart/form-data">
+    <div class="mb-3">
+        <label for="topic_id" class="form-label">Тема теста</label>
+        <select class="form-select" id="topic_id" name="topic_id" required>
+            <option value="">Выберите тему...</option>
+            {% for topic in topics %}
+                <option value="{{ topic.id }}">{{ topic.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="mb-3">
+        <label for="question_type" class="form-label">Тип вопроса</label>
+        <select class="form-select" id="question_type" name="question_type" required onchange="toggleQuestionFields()">
+            <option value="open">Открытый (текстовый)</option>
+            <option value="graphic">Графический</option>
+        </select>
+    </div>
+    <div class="mb-3">
+        <label for="question_text" class="form-label">Текст вопроса</label>
+        <textarea class="form-control" id="question_text" name="question_text" rows="3" required></textarea>
+    </div>
+    <div id="open_fields" style="display: none;">
+        <div class="mb-3">
+            <label for="correct_answer" class="form-label">Правильный ответ (для текстового вопроса)</label>
+            <textarea class="form-control" id="correct_answer" name="correct_answer" rows="3" required></textarea>
+        </div>
+    </div>
+
+    <div id="graphic_fields" style="display: none;">
+        <div class="mb-3">
+            <label for="image_file" class="form-label">Файл изображения</label>
+            <input type="file" class="form-control" id="image_file" name="image_file" accept=".jpg,.jpeg,.png">
+        </div>
+        <div class="mb-3">
+            <label for="annotation_file" class="form-label">Файл аннотации (COCO, JSON)</label>
+            <input type="file" class="form-control" id="annotation_file" name="annotation_file" accept=".json">
+        </div>
+    </div>
+
+    <div class="d-grid gap-2">
+        <button type="submit" class="btn btn-primary btn-lg">Создать вопрос</button>
+        <a href="{{ url_for('teacher.index') }}" class="btn btn-secondary">Отмена</a>
+    </div>
+</form>
+
+<script>
+    function toggleQuestionFields() {
+        const typeSelect = document.getElementById('question_type');
+        const openFields = document.getElementById('open_fields');
+        const graphicFields = document.getElementById('graphic_fields');
+
+        if (typeSelect.value === 'open') {
+            openFields.style.display = 'block';
+            graphicFields.style.display = 'none';
+        } else if (typeSelect.value === 'graphic') {
+            openFields.style.display = 'none';
+            graphicFields.style.display = 'block';
+        } else {
+            openFields.style.display = 'none';
+            graphicFields.style.display = 'none';
+        }
+    }
+
+    // Инициализация при загрузке страницы
+    document.addEventListener('DOMContentLoaded', function() {
+        toggleQuestionFields();
+    });
+</script>
+{% endblock %}

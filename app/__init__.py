@@ -98,12 +98,14 @@ def create_app(config_class=Config):
     # Создание папки для загрузки файлов если не существует
     import os
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    os.makedirs(app.config['IMAGES_UPLOAD_FOLDER'], exist_ok=True)  # Новый каталог
+    os.makedirs(app.config['ANNOTATIONS_UPLOAD_FOLDER'], exist_ok=True) # Новый каталог
 
     # Создание базы данных и добавление начальных данных (без администратора)
     with app.app_context():
         # Импорт моделей для создания таблиц
         from app.models.user import User
-        from app.models.test import Test
+        from app.models.test import Test, TestTopic
         from app.models.question import Question
         from app.models.annotation import ImageAnnotation, TestResult
 

@@ -26,8 +26,8 @@
         <div class="card stat-card text-center">
             <div class="card-body">
                 <i class="bi bi-clipboard text-success" style="font-size: 2rem;"></i>
-                <h4 class="card-title mt-2">{{ tests|length }}</h4>
-                <p class="card-text text-muted">{{ _('Тесты') }}</p>
+                <h4 class="card-title mt-2">{{ users|length }}</h4>
+                <p class="card-text text-muted">{{ _('Пользователи') }}</p>
             </div>
         </div>
     </div>
@@ -51,72 +51,8 @@
     </div>
 </div>
 
-<!-- Создание преподавателя -->
-<div class="card mb-4">
-    <div class="card-header">
-        <h5 class="mb-0"><i class="bi bi-person-plus"></i>{{ _('Создать профиль преподавателя') }}</h5>
-    </div>
-    <div class="card-body">
-        <form method="POST" action="{{ url_for('admin.create_teacher') }}">
-            <div class="row">
-                <div class="col-md-4 mb-3">
-                    <label for="last_name" class="form-label">
-                        {{ _('Фамилия') }}<span class="text-danger">*</span>
-                    </label>
-                    <input type="text" class="form-control" id="last_name" name="last_name" required>
-                </div>
-                <div class="col-md-4 mb-3">
-                    <label for="first_name" class="form-label">
-                        {{ _('Имя') }}<span class="text-danger">*</span>
-                    </label>
-                    <input type="text" class="form-control" id="first_name" name="first_name" required>
-                </div>
-                <div class="col-md-4 mb-3">
-                    <label for="middle_name" class="form-label">{{ _('Отчество') }}</label>
-                    <input type="text" class="form-control" id="middle_name" name="middle_name">
-                </div>
-            </div>
-            <div class="mb-3">
-                <label for="group_number" class="form-label">{{ _('Номер группы') }}</label>
-                <input type="text" class="form-control" id="group_number" name="group_number">
-            </div>
-            <div class="mb-3">
-                <label for="username" class="form-label">
-                    {{ _('Email') }}<span class="text-danger">*</span>
-                </label>
-                <input type="text" class="form-control" id="username" name="username" required>
-            </div>
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label for="password" class="form-label">
-                        {{ _('Пароль') }}<span class="text-danger">*</span>
-                    </label>
-                    <input type="password" class="form-control" id="password" name="password" required>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label for="confirm_password" class="form-label">
-                        {{ _('Повторить пароль') }}<span class="text-danger">*</span>
-                    </label>
-                    <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
-                </div>
-            </div>
-            <button type="submit" class="btn btn-primary">{{ _('Создать') }}</button>
-        </form>
-    </div>
-</div>
-
 <!-- Быстрые действия -->
 <div class="row">
-    <div class="col-md-4 mb-3">
-        <div class="card">
-            <div class="card-body text-center">
-                <i class="bi bi-clipboard-plus text-primary" style="font-size: 2rem;"></i>
-                <h5 class="card-title mt-2">{{ _('Создать тест') }}</h5>
-                <p class="card-text">{{ _('Создать новый тест') }}</p>
-                <a href="#" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTestModal">Создать</a>
-            </div>
-        </div>
-    </div>
     <div class="col-md-4 mb-3">
         <div class="card">
             <div class="card-body text-center">
@@ -131,13 +67,115 @@
         <div class="card">
             <div class="card-body text-center">
                 <i class="bi bi-person-lines-fill text-info" style="font-size: 2rem;"></i>
-                <h5 class="card-title mt-2">{{ _('Пользователи') }}</h5>
-                <p class="card-text">{{ _('Управление учетными записями') }}</p>
-                <a href="{{ url_for('database.view_users') }}" class="btn btn-info">{{ _('Перейти') }}</a>
+                <h5 class="card-title mt-2">{{ _('Преподаватели') }}</h5>
+                <p class="card-text">{{ _('Управление учетными записями преподавателей') }}</p>
+                <a href="{{ url_for('admin.teachers') }}" class="btn btn-info">{{ _('Перейти') }}</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="bi bi-clipboard-plus text-warning" style="font-size: 2rem;"></i>
+                <h5 class="card-title mt-2">{{ _('Темы тестов') }}</h5>
+                <p class="card-text">{{ _('Управление темами тестов') }}</p>
+                <a href="{{ url_for('database.users') }}" class="btn btn-warning">{{ _('Перейти') }}</a>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Управление темами тестов -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-tags"></i> {{ _('Управление темами тестов') }}</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('admin.create_topic') }}">
+            <div class="row">
+                <div class="col-md-8 mb-3">
+                    <label for="topic_name" class="form-label">{{ _('Название темы') }}</label>
+                    <input type="text" class="form-control" id="topic_name" name="name" required>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="topic_description" class="form-label">{{ _('Описание') }}</label>
+                    <input type="text" class="form-control" id="topic_description" name="description">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-success">{{ _('Создать тему') }}</button>
+        </form>
+
+        {% if topics %}
+            <div class="table-responsive mt-4">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>{{ _('ID') }}</th>
+                            <th>{{ _('Название') }}</th>
+                            <th>{{ _('Описание') }}</th>
+                            <th>{{ _('Создано') }}</th>
+                            <th>{{ _('Связанные тесты') }}</th>
+                            <th>{{ _('Действия') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for topic in topics %}
+                        <tr>
+                            <td>{{ topic.id }}</td>
+                            <td>{{ topic.name }}</td>
+                            <td>{{ topic.description|truncate(50) }}</td>
+                            <td>{{ topic.created_at.strftime('%Y-%m-%d') }}</td>
+                            <td>{{ topic.tests|length }}</td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editTopicModal{{ topic.id }}">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <a href="{{ url_for('admin.delete_topic', topic_id=topic.id) }}"
+                                   class="btn btn-sm btn-outline-danger"
+                                   onclick="return confirm('{{ _('Удалить тему %(name)s?', name=topic.name) }}')">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                            </td>
+                        </tr>
+
+                        <!-- Модальное окно редактирования темы -->
+                        <div class="modal fade" id="editTopicModal{{ topic.id }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">{{ _('Редактировать тему: %(name)s', name=topic.name) }}</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <form method="POST" action="{{ url_for('admin.edit_topic', topic_id=topic.id) }}">
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <label for="edit_topic_name_{{ topic.id }}" class="form-label">{{ _('Название') }}</label>
+                                                <input type="text" class="form-control" id="edit_topic_name_{{ topic.id }}" name="name" value="{{ topic.name }}" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="edit_topic_description_{{ topic.id }}" class="form-label">{{ _('Описание') }}</label>
+                                                <input type="text" class="form-control" id="edit_topic_description_{{ topic.id }}" name="description" value="{{ topic.description }}">
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('Отмена') }}</button>
+                                            <button type="submit" class="btn btn-primary">{{ _('Сохранить') }}</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="text-muted">{{ _('Нет созданных тем.') }}</p>
+        {% endif %}
+    </div>
+</div>
+
+
 
 <!-- Модальное окно создания теста -->
 <div class="modal fade" id="createTestModal" tabindex="-1">
@@ -147,7 +185,7 @@
                 <h5 class="modal-title">{{ _('Создать новый тест') }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" action="{{ url_for('admin.create_test') }}">
+            <form method="POST" action="{{ url_for('admin.index') }}">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="title" class="form-label">{{ _('Название теста') }}</label>

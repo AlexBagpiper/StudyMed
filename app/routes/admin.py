@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from app import db
 from app.models.user import User
-from app.models.test import Test
+from app.models.test import Test, TestTopic
 from app.models.question import Question
 from app.models.annotation import ImageAnnotation
 from werkzeug.utils import secure_filename
@@ -12,6 +12,7 @@ import json
 import cv2
 import numpy as np
 from app.utils.image_processing import process_coco_annotations, process_yolo_annotations
+from flask_babel import _ # Импортируем _ для перевода flash-сообщений
 
 # Создание Blueprint для маршрутов администратора
 # Теперь этот blueprint будет использовать префикс '/admin' при регистрации
@@ -29,14 +30,14 @@ def index():
         # Перенаправляем на главную, которая уже обработает аутентификацию
         return redirect(url_for('main.index'))
 
-    tests = Test.query.all()
     annotations = ImageAnnotation.query.all()
     users = User.query.all()
+    topics = TestTopic.query.all() # Добавляем темы
 
     return render_template('admin/index.html',
-                          tests=tests,
                           annotations=annotations,
-                          users=users)
+                          users=users,
+                          topics=topics)
 
 @bp.route('/upload_image', methods=['POST'])
 @login_required
@@ -110,52 +111,19 @@ def upload_image():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/create_test', methods=['POST'])
+@bp.route('/teachers')
 @login_required
-def create_test():
+def teachers():
     """
-    Маршрут для создания нового теста
-
-    Проверяет права доступа и создает новый тест
+    Просмотр результатов тестов
     """
-    if current_user.role not in ['admin', 'teacher']:
-        return jsonify({'error': 'Доступ запрещен'}), 403
+    if current_user.role != 'admin':
+        flash('Доступ запрещен')
+        return redirect(url_for('main.index'))
 
-    title = request.form['title']
-    description = request.form['description']
+    users = User.query.filter_by(role='teacher').all()
+    return render_template('admin/teachers.html', users=users)
 
-    new_test = Test(title=title, description=description, creator_id=current_user.id)
-    db.session.add(new_test)
-    db.session.commit()
-
-    return redirect(url_for('admin.index'))
-
-@bp.route('/add_question', methods=['POST'])
-@login_required
-def add_question():
-    """
-    Маршрут для добавления вопроса к тесту
-
-    Проверяет права доступа и добавляет новый вопрос
-    """
-    if current_user.role not in ['admin', 'teacher']:
-        return jsonify({'error': 'Доступ запрещен'}), 403
-
-    test_id = request.form['test_id']
-    question_text = request.form['question_text']
-    question_type = request.form['question_type']
-    correct_answer = request.form['correct_answer']
-
-    new_question = Question(
-        test_id=test_id,
-        question_text=question_text,
-        question_type=question_type,
-        correct_answer=correct_answer
-    )
-    db.session.add(new_question)
-    db.session.commit()
-
-    return jsonify({'success': True})
 
 @bp.route('/create_teacher', methods=['POST'])
 @login_required
@@ -177,21 +145,26 @@ def create_teacher():
     password = request.form.get('password', '').strip()
     confirm_password = request.form.get('confirm_password', '').strip()
 
+    # Проверка корректности username
+    if not User.is_valid_email(username):
+        flash(_('Некорректный формат email'))
+        return redirect(url_for('admin.teachers'))
+
     # Проверка обязательных полей (фамилия и имя)
     if not last_name or not first_name:
-        flash('Фамилия и имя обязательны для заполнения')
-        return redirect(url_for('admin.index'))
+        flash(_('Фамилия и имя обязательны для заполнения'))
+        return redirect(url_for('admin.teachers'))
 
     # Проверка совпадения паролей
     if password != confirm_password:
-        flash('Пароли не совпадают')
-        return redirect(url_for('admin.index'))
+        flash(_('Пароли не совпадают'))
+        return redirect(url_for('admin.teachers'))
 
     # Проверка существования пользователя
     existing_user = User.query.filter_by(username=username).first()
     if existing_user:
-        flash('Пользователь с таким логином уже существует')
-        return redirect(url_for('admin.index'))
+        flash(_('Пользователь с таким логином уже существует'))
+        return redirect(url_for('admin.teachers'))
 
     # Создание нового преподавателя
     new_teacher = User(
@@ -208,6 +181,72 @@ def create_teacher():
     db.session.commit()
 
     flash(f'Преподаватель {new_teacher.get_formatted_name()} успешно создан')
+    return redirect(url_for('admin.teachers'))
+
+@bp.route('/create_topic', methods=['POST'])
+@login_required
+def create_topic():
+    """
+    Маршрут для создания новой темы теста
+    """
+    if current_user.role != 'admin':
+        return jsonify({'error': 'Доступ запрещен'}), 403
+
+    name = request.form['name']
+    description = request.form.get('description', '')
+
+    # Проверка уникальности имени темы
+    existing_topic = TestTopic.query.filter_by(name=name).first()
+    if existing_topic:
+        flash('Тема с таким названием уже существует')
+        return redirect(url_for('admin.index'))
+
+    new_topic = TestTopic(name=name, description=description)
+    db.session.add(new_topic)
+    db.session.commit()
+
+    flash('Тема создана успешно')
+    return redirect(url_for('admin.index'))
+
+@bp.route('/edit_topic/<int:topic_id>', methods=['POST'])
+@login_required
+def edit_topic(topic_id):
+    """
+    Маршрут для редактирования темы теста
+
+    Args:
+        topic_id (int): ID темы
+    """
+    if current_user.role != 'admin':
+        return jsonify({'error': 'Доступ запрещен'}), 403
+
+    topic = TestTopic.query.get_or_404(topic_id)
+    topic.name = request.form['name']
+    topic.description = request.form.get('description', '')
+    db.session.commit()
+
+    flash('Тема обновлена успешно')
+    return redirect(url_for('admin.index'))
+
+@bp.route('/delete_topic/<int:topic_id>')
+@login_required
+def delete_topic(topic_id):
+    """
+    Маршрут для удаления темы теста
+
+    Args:
+        topic_id (int): ID темы
+    """
+    if current_user.role != 'admin':
+        flash('Доступ запрещен')
+        return redirect(url_for('admin.index'))
+
+    topic = TestTopic.query.get_or_404(topic_id)
+
+    db.session.delete(topic)
+    db.session.commit()
+
+    flash('Тема удалена успешно')
     return redirect(url_for('admin.index'))
 
 def allowed_file(filename, extensions_set):

@@ -44,5 +44,8 @@
             {% endfor %}
         </tbody>
     </table>
+    <div class="d-grid gap-2">
+        <a href="{{ url_for('database.index') }}" class="btn btn-primary">{{ _('назад') }}</a>
+    </div>
 </div>
 {% endblock %}

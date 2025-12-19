@@ -1,0 +1,51 @@
+<!-- app/templates/teacher/index.html -->
+{% extends "base.html" %}
+
+{% block title %}{{ _('Панель преподавателя') }} - {{ get_app_name() }}{% endblock %}
+
+{% block content %}
+<h2>Панель преподавателя</h2>
+
+<div class="row">
+    <div class="col-md-3 mb-3">
+        <div class="card text-center h-100">
+            <div class="card-body d-flex flex-column">
+                <i class="bi bi-plus-circle" style="font-size: 3rem; color: #0d6efd;"></i>
+                <h5 class="card-title mt-2">Создать вопрос для теста</h5>
+                <p class="card-text text-muted">Добавьте новый вопрос в базу данных</p>
+                <a href="{{ url_for('teacher.create_question') }}" class="btn btn-primary mt-auto">Перейти</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-center h-100">
+            <div class="card-body d-flex flex-column">
+                <i class="bi bi-bar-chart-line" style="font-size: 3rem; color: #198754;"></i>
+                <h5 class="card-title mt-2">Просмотр результатов</h5>
+                <p class="card-text text-muted">Просмотрите результаты студентов</p>
+                <a href="{{ url_for('teacher.view_results') }}" class="btn btn-success mt-auto">Перейти</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-center h-100">
+            <div class="card-body d-flex flex-column">
+                <i class="bi bi-pencil-square" style="font-size: 3rem; color: #ffc107;"></i>
+                <h5 class="card-title mt-2">Редактировать вопросы</h5>
+                <p class="card-text text-muted">Редактируйте существующие вопросы</p>
+                <a href="{{ url_for('teacher.view_questions') }}" class="btn btn-warning mt-auto">Перейти</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-center h-100">
+            <div class="card-body d-flex flex-column">
+                <i class="bi bi-files" style="font-size: 3rem; color: #6f42c1;"></i>
+                <h5 class="card-title mt-2">Создать вариант</h5>
+                <p class="card-text text-muted">Сгенерируйте вариант задания</p>
+                <a href="{{ url_for('teacher.generate_variant') }}" class="btn btn-info mt-auto">Перейти</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

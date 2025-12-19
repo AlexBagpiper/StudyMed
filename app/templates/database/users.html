@@ -15,6 +15,9 @@
                 <th>{{ _('Роль') }}</th>
                 <th>{{ _('Язык') }}</th>
                 <th>{{ _('Тема') }}</th>
+                <th>{{ _('Фамилия') }}</th>
+                <th>{{ _('Имя') }}</th>
+                <th>{{ _('Отчество') }}</th>
                 <th>{{ _('Дата создания') }}</th>
                 <th>{{ _('Действия') }}</th>
             </tr>
@@ -31,6 +34,9 @@
                 </td>
                 <td>{{ user.language }}</td>
                 <td>{{ user.theme }}</td>
+                <td>{{ user.first_name }}</td>
+                <td>{{ user.last_name }}</td>
+                <td>{{ user.middle_name }}</td>
                 <td>{{ user.created_at.strftime('%Y-%m-%d %H:%M') if user.created_at else _('N/A') }}</td>
                 <td>
                     <a href="{{ url_for('database.edit_record', table='users', id=user.id) }}" class="btn btn-sm btn-outline-primary">
@@ -46,5 +52,8 @@
             {% endfor %}
         </tbody>
     </table>
+    <div class="d-grid gap-2">
+        <a href="{{ url_for('database.index') }}" class="btn btn-primary">{{ _('назад') }}</a>
+    </div>
 </div>
 {% endblock %}

@@ -12,16 +12,7 @@
             <div class="card-body">
                 <h5 class="card-title">{{ _('Пользователи') }}</h5>
                 <h3 class="text-primary">{{ users_count }}</h3>
-                <a href="{{ url_for('database.view_users') }}" class="btn btn-primary">{{ _('Просмотр') }}</a>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3 mb-3">
-        <div class="card text-center">
-            <div class="card-body">
-                <h5 class="card-title">{{ _('Тесты') }}</h5>
-                <h3 class="text-success">{{ tests_count }}</h3>
-                <a href="{{ url_for('database.view_tests') }}" class="btn btn-success">{{ _('Просмотр') }}</a>
+                <a href="{{ url_for('database.users') }}" class="btn btn-primary">{{ _('Просмотр') }}</a>
             </div>
         </div>
     </div>
@@ -30,7 +21,7 @@
             <div class="card-body">
                 <h5 class="card-title">{{ _('Вопросы') }}</h5>
                 <h3 class="text-info">{{ questions_count }}</h3>
-                <a href="{{ url_for('database.view_questions') }}" class="btn btn-info">{{ _('Просмотр') }}</a>
+                <a href="{{ url_for('database.questions') }}" class="btn btn-info">{{ _('Просмотр') }}</a>
             </div>
         </div>
     </div>
@@ -39,7 +30,7 @@
             <div class="card-body">
                 <h5 class="card-title">{{ _('Аннотации') }}</h5>
                 <h3 class="text-warning">{{ annotations_count }}</h3>
-                <a href="{{ url_for('database.view_annotations') }}" class="btn btn-warning">{{ _('Просмотр') }}</a>
+                <a href="{{ url_for('database.annotations') }}" class="btn btn-warning">{{ _('Просмотр') }}</a>
             </div>
         </div>
     </div>
@@ -48,7 +39,7 @@
             <div class="card-body">
                 <h5 class="card-title">{{ _('Результаты') }}</h5>
                 <h3 class="text-danger">{{ results_count }}</h3>
-                <a href="{{ url_for('database.view_results') }}" class="btn btn-danger">{{ _('Просмотр') }}</a>
+                <a href="{{ url_for('database.results') }}" class="btn btn-danger">{{ _('Просмотр') }}</a>
             </div>
         </div>
     </div>

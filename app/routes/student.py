@@ -6,7 +6,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_login import login_required, current_user
 from app import db
-from app.models.test import Test
 from app.models.question import Question
 from app.models.annotation import ImageAnnotation, TestResult
 from app.models.user import User

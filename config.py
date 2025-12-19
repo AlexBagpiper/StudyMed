@@ -17,6 +17,8 @@ class Config:
 
     # Настройки загрузки файлов
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'app', 'static', 'uploads')
+    IMAGES_UPLOAD_FOLDER = os.path.join(UPLOAD_FOLDER, 'images')
+    ANNOTATIONS_UPLOAD_FOLDER = os.path.join(UPLOAD_FOLDER, 'annotations')
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
 
     # Указываем путь к каталогу с переводами

@@ -1,7 +1,7 @@
-<!-- app/templates/database/questions.html -->
+<!-- app/templates/teacher/view_questions.html -->
 {% extends "base.html" %}
 
-{% block title %}{{ _('Вопросы') }} - {{ get_app_name() }}{% endblock %}
+{% block title %}{{ _('Мои вопросы') }} - {{ get_app_name() }}{% endblock %}
 
 {% block content %}
 <h2>Созданные вопросы</h2>
@@ -13,7 +13,7 @@
                 <tr>
                     {% if current_user.role in ['admin'] %}
                         <th>
-                            <a href="{{ url_for('database.questions', sort_by='user', order='asc' if request.args.get('order') == 'desc' and request.args.get('sort_by') == 'user' else 'desc', page=request.args.get('page', 1)) }}"
+                            <a href="{{ url_for('teacher.view_questions', sort_by='user', order='asc' if request.args.get('order') == 'desc' and request.args.get('sort_by') == 'user' else 'desc', page=request.args.get('page', 1)) }}"
                                 class="text-decoration-none text-dark">
                                     ID пользователя
                                     {% if request.args.get('sort_by') == 'user' %}
@@ -24,7 +24,7 @@
                     {% endif %}
 
                     <th>
-                        <a href="{{ url_for('database.questions', sort_by='topic', order='asc' if request.args.get('order') == 'desc' and request.args.get('sort_by') == 'topic' else 'desc', page=request.args.get('page', 1)) }}"
+                        <a href="{{ url_for('teacher.view_questions', sort_by='topic', order='asc' if request.args.get('order') == 'desc' and request.args.get('sort_by') == 'topic' else 'desc', page=request.args.get('page', 1)) }}"
                            class="text-decoration-none text-dark">
                             Название темы
                             {% if request.args.get('sort_by') == 'topic' %}
@@ -33,7 +33,7 @@
                         </a>
                     </th>
                     <th>
-                        <a href="{{ url_for('database.questions', sort_by='type', order='asc' if request.args.get('order') == 'desc' and request.args.get('sort_by') == 'type' else 'desc', page=request.args.get('page', 1)) }}"
+                        <a href="{{ url_for('teacher.view_questions', sort_by='type', order='asc' if request.args.get('order') == 'desc' and request.args.get('sort_by') == 'type' else 'desc', page=request.args.get('page', 1)) }}"
                            class="text-decoration-none text-dark">
                             Тип вопроса
                             {% if request.args.get('sort_by') == 'type' %}
@@ -45,7 +45,7 @@
                     <th>Ответ на вопрос</th>
                     <th>Аннотация</th>
                     <th>
-                        <a href="{{ url_for('database.questions', sort_by='date', order='asc' if request.args.get('order') == 'desc' and request.args.get('sort_by') == 'date' else 'desc', page=request.args.get('page', 1)) }}"
+                        <a href="{{ url_for('teacher.view_questions', sort_by='date', order='asc' if request.args.get('order') == 'desc' and request.args.get('sort_by') == 'date' else 'desc', page=request.args.get('page', 1)) }}"
                            class="text-decoration-none text-dark">
                             Дата создания
                             {% if request.args.get('sort_by') == 'date' %}
@@ -76,10 +76,10 @@
                     <td>{{ question.image_annotation_id }}</td>
                     <td>{{ question.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                     <td>
-                        <a href="{{ url_for('database.edit_record', table='questions', id=question.id) }}" class="btn btn-sm btn-outline-primary">
+                        <a href="{{ url_for('teacher.edit_question', question_id=question.id) }}" class="btn btn-sm btn-outline-primary">
                             <i class="bi bi-pencil"></i> Редактировать
                         </a>
-                        <a href="{{ url_for('database.delete_record', table='questions', id=question.id) }}"
+                        <a href="{{ url_for('teacher.delete_question', question_id=question.id) }}"
                            class="btn btn-sm btn-outline-danger"
                            onclick="return confirm('Удалить тест?')">
                             <i class="bi bi-trash"></i> Удалить
@@ -97,7 +97,7 @@
             <ul class="pagination justify-content-center">
                 {% if pagination.has_prev %}
                     <li class="page-item">
-                        <a class="page-link" href="{{ url_for('database.questions', page=pagination.prev_num, sort_by=request.args.get('sort_by'), order=request.args.get('order')) }}">Предыдущая</a>
+                        <a class="page-link" href="{{ url_for('teacher.view_questions', page=pagination.prev_num, sort_by=request.args.get('sort_by'), order=request.args.get('order')) }}">Предыдущая</a>
                     </li>
                 {% endif %}
 
@@ -105,7 +105,7 @@
                     {% if page_num %}
                         {% if page_num != pagination.page %}
                             <li class="page-item">
-                                <a class="page-link" href="{{ url_for('database.questions', page=page_num, sort_by=request.args.get('sort_by'), order=request.args.get('order')) }}">{{ page_num }}</a>
+                                <a class="page-link" href="{{ url_for('teacher.view_questions', page=page_num, sort_by=request.args.get('sort_by'), order=request.args.get('order')) }}">{{ page_num }}</a>
                             </li>
                         {% else %}
                             <li class="page-item active">
@@ -121,7 +121,7 @@
 
                 {% if pagination.has_next %}
                     <li class="page-item">
-                        <a class="page-link" href="{{ url_for('database.questions', page=pagination.next_num, sort_by=request.args.get('sort_by'), order=request.args.get('order')) }}">Следующая</a>
+                        <a class="page-link" href="{{ url_for('teacher.view_questions', page=pagination.next_num, sort_by=request.args.get('sort_by'), order=request.args.get('order')) }}">Следующая</a>
                     </li>
                 {% endif %}
             </ul>
@@ -133,6 +133,6 @@
 
 <div class="d-grid gap-2">
     <a href="{{ url_for('teacher.create_question') }}" class="btn btn-primary">Создать новый вопрос</a>
-    <a href="{{ url_for('database.index') }}" class="btn btn-secondary">Назад</a>
+    <a href="{{ url_for('teacher.index') }}" class="btn btn-secondary">Назад</a>
 </div>
 {% endblock %}

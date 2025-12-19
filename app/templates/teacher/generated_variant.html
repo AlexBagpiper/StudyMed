@@ -1,0 +1,36 @@
+<!-- app/templates/teacher/generated_variant.html -->
+{% extends "base.html" %}
+
+{% block title %}{{ _('Сгенерированный вариант') }}  - {{ get_app_name() }}{% endblock %}
+
+{% block content %}
+<h2>Сгенерированный вариант задания</h2>
+
+<p>Выбрано вопросов: {{ questions|length }}</p>
+
+{% for question in questions %}
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5 class="card-title">{{ loop.index }}. {{ question.question_text }}</h5>
+            <p class="card-text">
+                <strong>Тип:</strong>
+                <span class="badge bg-{{ 'info' if question.question_type == 'open' else 'warning' }}">{{ question.question_type|title }}</span>
+            </p>
+            {% if question.question_type == 'graphic' %}
+                {% if question.correct_answer %}
+                    {% set annotation_id = question.correct_answer | int %}
+                    {% set annotation = ImageAnnotation.query.get(annotation_id) %}
+                    {% if annotation %}
+                        <p><strong>Изображение:</strong> <a href="{{ url_for('static', filename='uploads/' + annotation.filename) }}" target="_blank">{{ annotation.filename }}</a></p>
+                    {% else %}
+                        <p class="text-warning">Изображение для этого вопроса не найдено.</p>
+                    {% endif %}
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+{% endfor %}
+
+<a href="{{ url_for('teacher.generate_variant') }}" class="btn btn-primary">Создать другой вариант</a>
+<a href="{{ url_for('teacher.index') }}" class="btn btn-secondary">Назад</a>
+{% endblock %}

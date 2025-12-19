@@ -19,6 +19,7 @@ class ImageAnnotation(db.Model):
         format_type (str): Тип формата ('coco', 'yolo')
         labels (str): JSON строка с метками
         created_at (datetime): Дата создания аннотации
+        questions (relationship): Связь с вопросами, использующими эту аннотацию
     """
 
     __tablename__ = 'image_annotations'
@@ -31,9 +32,8 @@ class ImageAnnotation(db.Model):
     labels = db.Column(Text)  # JSON строка содержащая метки
     created_at = db.Column(DateTime, default=datetime.utcnow)
 
-    # Связи с другими моделями
-    # УБРАНО: некорректная связь с Test.questions
-    # test = db.relationship('Test', back_populates='questions', lazy=True) # <-- УДАЛЕНО
+    # НОВОЕ: Связь с вопросами
+    questions = db.relationship('Question', back_populates='image_annotation', lazy=True)
 
     def __repr__(self):
         """
@@ -51,7 +51,6 @@ class TestResult(db.Model):
     Attributes:
         id (int): Уникальный идентификатор результата
         user_id (int): ID пользователя
-        test_id (int): ID теста
         score (float): Оценка за тест (0.0 - 1.0)
         answers_json (str): JSON строка содержащая все ответы
         metrics_json (str): JSON строка содержащая метрики оценки
@@ -67,7 +66,6 @@ class TestResult(db.Model):
     # Основные поля
     id = db.Column(Integer, primary_key=True)
     user_id = db.Column(Integer, ForeignKey('users.id'), nullable=False)
-    test_id = db.Column(Integer, ForeignKey('tests.id'), nullable=False)
     score = db.Column(Float, nullable=False)
     answers_json = db.Column(Text)  # JSON строка с ответами
     metrics_json = db.Column(Text)  # JSON строка с метриками
@@ -79,7 +77,7 @@ class TestResult(db.Model):
     # ИСПРАВЛЕНО: back_populates='test_results' - указывает на атрибут 'test_results' в User
     user = db.relationship('User', back_populates='test_results')
     # ИСПРАВЛЕНО: back_populates='results' - указывает на атрибут 'results' в Test
-    test = db.relationship('Test', back_populates='results')
+    #test = db.relationship('Test', back_populates='results')
 
     def __repr__(self):
         """

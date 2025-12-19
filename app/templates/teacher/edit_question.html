@@ -1,12 +1,12 @@
 <!-- app/templates/teacher/edit_question.html -->
 {% extends "base.html" %}
 
-{% block title %}Редактировать вопрос - Панель администратора{% endblock %}
+{% block title %}Редактировать вопрос - Панель преподавателя{% endblock %}
 
 {% block content %}
 <h2>Редактировать вопрос</h2>
 
-<form method="POST" action="{{ url_for('database.edit_record', table='questions', id=question.id) }}" enctype="multipart/form-data">
+<form method="POST" action="{{ url_for('teacher.edit_question', question_id=question.id) }}" enctype="multipart/form-data">
     <div class="mb-3">
         <label for="topic_id" class="form-label">{{ _('Тема теста') }}</label>
         <select class="form-select" id="topic_id" name="topic_id" required>
@@ -57,7 +57,7 @@
 
     <div class="d-grid gap-2">
         <button type="submit" class="btn btn-primary btn-lg">Сохранить изменения</button>
-        <a href="{{ url_for('database.questions') }}" class="btn btn-secondary">Отмена</a>
+        <a href="{{ url_for('teacher.view_questions') }}" class="btn btn-secondary">Отмена</a>
     </div>
 </form>
 

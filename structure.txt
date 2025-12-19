@@ -1,70 +1,118 @@
-medical_testing_app/
-├── app.py                 # Главный файл приложения
-├── config.py              # Файл конфигурации
-├── requirements.txt       # Зависимости
-├── run.py                 # Файл для запуска приложения
-├── migrations/            # Миграции базы данных
+Структура проекта: E:\pythonProject\StudyMed
+============================================================
+Включённые расширения: все
+Исключённые расширения: нет
+Скрытые файлы: скрыты
+Игнорируемые директории: ['.DS_Store', '.eggs', '.git', '.idea', '.mypy_cache', '.pytest_cache', '.tox', '.venv', '.vscode', 'Thumbs.db', '__pycache__', 'build', 'dist', 'node_modules', 'venv']
+============================================================
 ├── app/
-│   ├── __init__.py       # Инициализация приложения
-│   ├── models/           # Модели данных
+│   ├── models/
 │   │   ├── __init__.py
-│   │   ├── user.py       # Модель пользователя
-│   │   ├── test.py       # Модель теста
-│   │   ├── question.py   # Модель вопроса
-│   │   └── annotation.py # Модель аннотации
-│   ├── routes/           # Маршруты приложения
+│   │   ├── annotation.py
+│   │   ├── question.py
+│   │   ├── test.py
+│   │   └── user.py
+│   ├── routes/
 │   │   ├── __init__.py
-│   │   ├── auth.py       # Маршруты аутентификации
-│   │   ├── main.py       # Основные маршруты
-│   │   ├── admin.py      # Маршруты администратора
-│   │   ├── teacher.py    # Маршруты преподавателя
-│   │   └── student.py    # Маршруты студента
-│   ├── utils/            # Вспомогательные функции
-│   │   ├── __init__.py
-│   │   ├── contour_metrics.py  # Функции оценки контуров
-│   │   ├── image_processing.py # Функции обработки изображений
-│   │   └── themes.py     # Функции управления темами
-│   ├── static/           # Статические файлы
+│   │   ├── admin.py
+│   │   ├── auth.py
+│   │   ├── database.py
+│   │   ├── main.py
+│   │   ├── student.py
+│   │   └── teacher.py
+│   ├── static/
 │   │   ├── css/
-│   │   │   ├── themes/   # CSS файлы тем
-│   │   │   │   ├── default.css
+│   │   │   ├── themes/
 │   │   │   │   ├── blue.css
-│   │   │   │   └── custom.css
-│   │   │   └── main.css  # Основной CSS
+│   │   │   │   ├── custom.css
+│   │   │   │   └── default.css
+│   │   │   └── main.css
+│   │   ├── images/
 │   │   ├── js/
-│   │   │   └── main.js   # Основной JavaScript
-│   │   ├── uploads/      # Загруженные файлы
-│   │   └── images/       # Статические изображения
-│   └── templates/        # Шаблоны HTML
-│       ├── base.html     # Базовый шаблон
-│       ├── auth/
-│       │   ├── login.html
-│       │   └── register.html
-│       ├── main/
-│       │   ├── index.html
-│       │   └── dashboard.html
-│       ├── admin/
-│       │   ├── index.html
-│       │   └── manage_users.html
-│       ├── teacher/
-│       │   ├── index.html
-│       │   └── results.html
-│       ├── student/
-│       │   ├── test.html
-│       │   └── results.html
-│       └── shared/
-│           ├── header.html
-│           └── footer.html
-├── translations/     # Файлы локализации
+│   │   │   └── main.js
+│   │   ├── uploads/
+│   │   │   ├── annotations/
+│   │   │   └── images/
+│   │   └── favicon.ico
+│   ├── templates/
+│   │   ├── admin/
+│   │   │   ├── index.html
+│   │   │   └── manage_users.html
+│   │   ├── auth/
+│   │   │   ├── login.html
+│   │   │   └── register.html
+│   │   ├── database/
+│   │   │   ├── annotations.html
+│   │   │   ├── edit_annotation.html
+│   │   │   ├── edit_question.html
+│   │   │   ├── edit_result.html
+│   │   │   ├── edit_test.html
+│   │   │   ├── edit_user.html
+│   │   │   ├── index.html
+│   │   │   ├── questions.html
+│   │   │   ├── results.html
+│   │   │   ├── tests.html
+│   │   │   └── users.html
+│   │   ├── main/
+│   │   │   ├── dashboard.html
+│   │   │   ├── index.html
+│   │   │   └── profile.html
+│   │   ├── shared/
+│   │   │   ├── footer.html
+│   │   │   └── header.html
+│   │   ├── student/
+│   │   │   ├── result_detail.html
+│   │   │   ├── results.html
+│   │   │   ├── results_list.html
+│   │   │   ├── take_test.html
+│   │   │   ├── tests.html
+│   │   │   ├── tests_dashboard.html
+│   │   │   └── tests_list.html
+│   │   ├── teacher/
+│   │   │   ├── create_question.html
+│   │   │   ├── create_test.html
+│   │   │   ├── edit_question.html
+│   │   │   ├── edit_test.html
+│   │   │   ├── generate_variant.html
+│   │   │   ├── generated_variant.html
+│   │   │   ├── index.html
+│   │   │   ├── results.html
+│   │   │   ├── view_results.html
+│   │   │   └── view_tests.html
+│   │   └── base.html
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   ├── contour_metrics.py
+│   │   ├── image_processing.py
+│   │   └── themes.py
+│   └── __init__.py
+├── DOCS/
+│   └── promt.docx
+├── instance/
+│   ├── _medical_tests.db
+│   └── medical_tests.db
+├── migrations/
+├── themes/
+│   ├── blue.json
+│   ├── custom.json
+│   └── default.json
+├── translations/
+│   ├── en/
+│   │   └── LC_MESSAGES/
+│   │       ├── messages.mo
+│   │       └── messages.po
 │   ├── ru/
 │   │   └── LC_MESSAGES/
-│   │       ├── messages.po
-│   │       └── messages.mo
-│   └── en/
-│       └── LC_MESSAGES/
-│           ├── messages.po
-│           └── messages.mo
-└── themes/               # JSON файлы тем
-    ├── default.json
-    ├── blue.json
-    └── custom.json
+│   │       ├── messages.mo
+│   │       └── messages.po
+│   └── messages.pot
+├── admin_credentials.py
+├── app.py
+├── babel.cfg
+├── config.py
+├── project_tree.py
+├── requirements.txt
+├── run.py
+├── structure.txt
+├── test.py
+└── update_translations.py

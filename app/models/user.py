@@ -46,10 +46,13 @@ class User(UserMixin, db.Model):
     created_at = db.Column(DateTime, default=datetime.utcnow)
 
     # Связи с другими моделями
-    # ИСПРАВЛЕНО: back_populates='creator' - указывает на атрибут 'creator' в Test
-    created_tests = db.relationship('Test', back_populates='creator', lazy=True, foreign_keys='Test.creator_id')
-    # ИСПРАВЛЕНО: back_populates='user' - указывает на атрибут 'user' в TestResult
+    # указывает на атрибут 'creator' в Test
+    #created_tests = db.relationship('Test', back_populates='creator', lazy=True, foreign_keys='Test.creator_id')
+    # указывает на атрибут 'user' в TestResult
     test_results = db.relationship('TestResult', back_populates='user', lazy=True)
+    # creator_questions - вопросы, созданные пользователем
+    creator_questions = db.relationship('Question', back_populates='creator', lazy=True, foreign_keys='Question.creator_id')
+
 
     def __repr__(self):
         """

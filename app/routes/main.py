@@ -5,7 +5,6 @@
 """
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from flask_login import login_required, current_user
-from app.models.test import Test
 from app.models.user import User
 from config import Config
 from flask_babel import _, get_locale # Импортируем _ и get_locale
