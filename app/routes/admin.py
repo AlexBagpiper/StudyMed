@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from app import db
 from app.models.user import User
-from app.models.test import Test, TestTopic
+from app.models.test_topics import TestTopic
 from app.models.question import Question
 from app.models.annotation import ImageAnnotation
 from werkzeug.utils import secure_filename
@@ -13,6 +13,7 @@ import cv2
 import numpy as np
 from app.utils.image_processing import process_coco_annotations, process_yolo_annotations
 from flask_babel import _ # Импортируем _ для перевода flash-сообщений
+from sqlalchemy import asc, desc
 
 # Создание Blueprint для маршрутов администратора
 # Теперь этот blueprint будет использовать префикс '/admin' при регистрации
@@ -115,14 +116,50 @@ def upload_image():
 @login_required
 def teachers():
     """
-    Просмотр результатов тестов
+    Просмотр преподавателей (только для администраторов)
     """
     if current_user.role != 'admin':
-        flash('Доступ запрещен')
+        flash(_('Доступ запрещён'))
         return redirect(url_for('main.index'))
 
-    users = User.query.filter_by(role='teacher').all()
-    return render_template('admin/teachers.html', users=users)
+    # Параметры сортировки
+    sort_by = request.args.get('sort_by', 'date')
+    order = request.args.get('order', 'desc')
+
+    # Параметр количества записей на странице
+    per_page_raw = request.args.get('per_page', '10')
+    try:
+        per_page = int(per_page_raw) if per_page_raw != 'all' else None
+    except (TypeError, ValueError):
+        per_page = 10
+
+    # Поля сортировки
+    sort_fields = {
+        'username': User.username,
+        'first_name': User.first_name,
+        'last_name': User.last_name,
+        'date': User.created_at
+    }
+    sort_field = sort_fields.get(sort_by, User.created_at)
+    sort_expr = asc(sort_field) if order == 'asc' else desc(sort_field)
+
+    # Запрос только преподавателей
+    query = User.query.filter_by(role='teacher').order_by(sort_expr)
+
+    # Пагинация или выбор всех
+    page = request.args.get('page', 1, type=int)
+
+    if per_page is None:
+        users = query.all()
+        pagination = None
+    else:
+        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        users = pagination.items
+
+    return render_template('admin/teachers.html',
+                          users=users,
+                          pagination=pagination,
+                          current_per_page=per_page_raw)
 
 
 @bp.route('/create_teacher', methods=['POST'])
@@ -183,6 +220,54 @@ def create_teacher():
     flash(f'Преподаватель {new_teacher.get_formatted_name()} успешно создан')
     return redirect(url_for('admin.teachers'))
 
+@bp.route('/topics')
+@login_required
+def topics():
+    """
+    Управление темами тестов (только для администраторов)
+    """
+    if current_user.role != 'admin':
+        flash(_('Доступ запрещён'))
+        return redirect(url_for('main.index'))
+
+    # Параметры сортировки
+    sort_by = request.args.get('sort_by', 'date')
+    order = request.args.get('order', 'desc')
+
+    # Параметр количества записей
+    per_page_raw = request.args.get('per_page', '10')
+    try:
+        per_page = int(per_page_raw) if per_page_raw != 'all' else None
+    except (TypeError, ValueError):
+        per_page = 10
+
+    # Поля сортировки
+    sort_fields = {
+        'id': TestTopic.id,
+        'name': TestTopic.name,
+        'date': TestTopic.created_at
+    }
+    sort_field = sort_fields.get(sort_by, TestTopic.created_at)
+    sort_expr = asc(sort_field) if order == 'asc' else desc(sort_field)
+
+    # Запрос
+    query = TestTopic.query.order_by(sort_expr)
+
+    # Пагинация или выбор всех
+    page = request.args.get('page', 1, type=int)
+
+    if per_page is None:
+        topics = query.all()
+        pagination = None
+    else:
+        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        topics = pagination.items
+
+    return render_template('admin/topics.html',
+                          topics=topics,
+                          pagination=pagination,
+                          current_per_page=per_page_raw)
+
 @bp.route('/create_topic', methods=['POST'])
 @login_required
 def create_topic():
@@ -198,15 +283,15 @@ def create_topic():
     # Проверка уникальности имени темы
     existing_topic = TestTopic.query.filter_by(name=name).first()
     if existing_topic:
-        flash('Тема с таким названием уже существует')
+        flash(_('Тема с таким названием уже существует'))
         return redirect(url_for('admin.index'))
 
     new_topic = TestTopic(name=name, description=description)
     db.session.add(new_topic)
     db.session.commit()
 
-    flash('Тема создана успешно')
-    return redirect(url_for('admin.index'))
+    flash(_('Тема создана успешно'))
+    return redirect(url_for('admin.topics'))
 
 @bp.route('/edit_topic/<int:topic_id>', methods=['POST'])
 @login_required
@@ -225,8 +310,8 @@ def edit_topic(topic_id):
     topic.description = request.form.get('description', '')
     db.session.commit()
 
-    flash('Тема обновлена успешно')
-    return redirect(url_for('admin.index'))
+    flash(_('Тема обновлена успешно'))
+    return redirect(url_for('admin.topics'))
 
 @bp.route('/delete_topic/<int:topic_id>')
 @login_required
@@ -246,8 +331,8 @@ def delete_topic(topic_id):
     db.session.delete(topic)
     db.session.commit()
 
-    flash('Тема удалена успешно')
-    return redirect(url_for('admin.index'))
+    flash(_('Тема удалена успешно'))
+    return redirect(url_for('admin.topics'))
 
 def allowed_file(filename, extensions_set):
     """

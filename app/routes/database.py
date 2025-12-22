@@ -3,11 +3,12 @@
 Маршруты для просмотра и управления базой данных
 Содержит инструменты просмотра и редактирования данных в БД
 """
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+import os
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import login_required, current_user
 from app import db
 from app.models.user import User
-from app.models.test import TestTopic
+from app.models.test_topics import TestTopic
 from app.models.question import Question
 from app.models.annotation import ImageAnnotation, TestResult
 from sqlalchemy import asc, desc
@@ -33,12 +34,14 @@ def index():
     questions_count = Question.query.count()
     annotations_count = ImageAnnotation.query.count()
     results_count = TestResult.query.count()
+    topics_count = TestTopic.query.count()
 
     return render_template('database/index.html',
                           users_count=users_count,
                           questions_count=questions_count,
                           annotations_count=annotations_count,
-                          results_count=results_count)
+                          results_count=results_count,
+                          topics_count=topics_count)
 
 @bp.route('/users')
 @login_required
@@ -46,12 +49,56 @@ def users():
     """
     Просмотр пользователей
     """
-    if current_user.role != 'admin':
-        flash('Доступ запрещен')
-        return redirect(url_for('main.dashboard'))
 
-    users = User.query.all()
-    return render_template('database/users.html', users=users)
+    # Получаем параметры сортировки из запроса
+    sort_by = request.args.get('sort_by', 'date')
+    order = request.args.get('order', 'desc')
+
+    if current_user.role not in ['admin']:
+        flash('Доступ запрещен')
+        return redirect(url_for('main.index'))
+
+    # Параметр количества записей на странице
+    per_page_raw = request.args.get('per_page', '10')
+    try:
+        per_page = int(per_page_raw) if per_page_raw != 'all' else None
+    except (TypeError, ValueError):
+        per_page = 10
+
+    # Определяем поля сортировки
+    sort_fields = {
+        'role': User.role,
+        'first_name': User.first_name,
+        'group_number': User.group_number,
+        'date': User.created_at
+    }
+
+    # Получаем поле для сортировки
+    sort_field = sort_fields.get(sort_by, User.created_at)
+    sort_expr = asc(sort_field) if order == 'asc' else desc(sort_field)
+
+    if current_user.role == 'admin':
+        query = User.query.order_by(sort_expr)
+    else:
+        return redirect(url_for('main.index'))
+
+    # Пагинация или выбор всех
+    page = request.args.get('page', 1, type=int)
+
+    # Пагинация
+    if per_page is None:
+        # Показываем все записи
+        users = query.all()
+        pagination = None
+    else:
+        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        users = pagination.items
+
+    return render_template('database/users.html',
+                            users=users,
+                            pagination=pagination,
+                            current_per_page=per_page_raw)  # передаём текущее значение для select
+
 
 @bp.route('/questions')
 @login_required
@@ -70,6 +117,13 @@ def questions():
         flash('Доступ запрещен')
         return redirect(url_for('main.index'))
 
+    # Параметр количества записей на странице
+    per_page_raw = request.args.get('per_page', '10')
+    try:
+        per_page = int(per_page_raw) if per_page_raw != 'all' else None
+    except (TypeError, ValueError):
+        per_page = 10
+
     # Определяем поля сортировки
     sort_fields = {
         'user': Question.creator_id,
@@ -80,40 +134,123 @@ def questions():
 
     # Получаем поле для сортировки
     sort_field = sort_fields.get(sort_by, Question.created_at)
-
-    # Определяем направление сортировки
-    if order == 'asc':
-        sort_expr = asc(sort_field)
-    else:
-        sort_expr = desc(sort_field)
+    sort_expr = asc(sort_field) if order == 'asc' else desc(sort_field)
 
     # Преподаватель видит только свои тесты, администратор - все
     if current_user.role == 'admin':
         query = Question.query.join(TestTopic, Question.topic_id == TestTopic.id).order_by(sort_expr)
+    else:
+        return redirect(url_for('main.index'))
+
+    # Пагинация или выбор всех
+    page = request.args.get('page', 1, type=int)
 
     # Пагинация
-    page = request.args.get('page', 1, type=int)
-    per_page = 10  # количество вопросов на странице
-    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
-    questions = pagination.items
+    if per_page is None:
+        # Показываем все записи
+        questions = query.all()
+        pagination = None
+    else:
+        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        questions = pagination.items
 
     return render_template('database/questions.html',
-                          questions=questions,
-                          topic_map=topic_map,
-                          pagination=pagination)
+                            questions=questions,
+                            topic_map=topic_map,
+                            pagination=pagination,
+                            current_per_page=per_page_raw)  # передаём текущее значение для select
+
+@bp.route('/topics')
+@login_required
+def topics():
+    """
+    Просмотр тем тестов (только для администраторов)
+    """
+    if current_user.role != 'admin':
+        flash(_('Доступ запрещён'))
+        return redirect(url_for('main.index'))
+
+    # Параметры
+    sort_by = request.args.get('sort_by', 'date')
+    order = request.args.get('order', 'desc')
+    per_page_raw = request.args.get('per_page', '10')
+    page = request.args.get('page', 1, type=int)
+
+    try:
+        per_page = int(per_page_raw) if per_page_raw != 'all' else None
+    except (TypeError, ValueError):
+        per_page = 10
+
+    # Сортировка
+    sort_fields = {
+        'id': TestTopic.id,
+        'name': TestTopic.name,
+        'date': TestTopic.created_at
+    }
+    sort_field = sort_fields.get(sort_by, TestTopic.created_at)
+    sort_expr = asc(sort_field) if order == 'asc' else desc(sort_field)
+
+    query = TestTopic.query.order_by(sort_expr)
+
+    # Пагинация
+    if per_page is None:
+        topics = query.all()
+        pagination = None
+    else:
+        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        topics = pagination.items
+
+    return render_template('database/topics.html',
+                          topics=topics,
+                          pagination=pagination,
+                          current_per_page=per_page_raw)
 
 @bp.route('/database/annotations')
 @login_required
 def annotations():
     """
-    Просмотр аннотаций
+    Просмотр аннотаций с пагинацией и сортировкой (только для админа)
     """
     if current_user.role != 'admin':
-        flash(_('Доступ запрещен'))
+        flash(_('Доступ запрещён'))
         return redirect(url_for('main.dashboard'))
 
-    annotations = ImageAnnotation.query.all()
-    return render_template('database/annotations.html', annotations=annotations)
+    # Параметры
+    sort_by = request.args.get('sort_by', 'date')
+    order = request.args.get('order', 'desc')
+    per_page_raw = request.args.get('per_page', '10')
+    page = request.args.get('page', 1, type=int)
+
+    try:
+        per_page = int(per_page_raw) if per_page_raw != 'all' else None
+    except (TypeError, ValueError):
+        per_page = 10
+
+    # Поля сортировки
+    sort_fields = {
+        'id': ImageAnnotation.id,
+        'image': ImageAnnotation.image_file,
+        'annotation': ImageAnnotation.annotation_file,
+        'format': ImageAnnotation.format_type,
+        'date': ImageAnnotation.created_at
+    }
+    sort_field = sort_fields.get(sort_by, ImageAnnotation.created_at)
+    sort_expr = asc(sort_field) if order == 'asc' else desc(sort_field)
+
+    query = ImageAnnotation.query.order_by(sort_expr)
+
+    # Пагинация
+    if per_page is None:
+        annotations = query.all()
+        pagination = None
+    else:
+        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        annotations = pagination.items
+
+    return render_template('database/annotations.html',
+                          annotations=annotations,
+                          pagination=pagination,
+                          current_per_page=per_page_raw)
 
 @bp.route('/database/results')
 @login_required
@@ -145,20 +282,29 @@ def delete_record(table, id):
     try:
         if table == 'users':
             record = User.query.get_or_404(id)
-            db.session.delete(record)
         elif table == 'questions':
             record = Question.query.get_or_404(id)
-            db.session.delete(record)
+        elif table == 'topics':
+            record = TestTopic.query.get_or_404(id)
         elif table == 'annotations':
             record = ImageAnnotation.query.get_or_404(id)
-            db.session.delete(record)
+            # Удаляем файлы
+            upload_folder = current_app.config['UPLOAD_FOLDER']
+            image_path = os.path.join(upload_folder, 'images', record.image_file)
+            annotation_path = os.path.join(upload_folder, 'annotations', record.annotation_file)
+            # Удаляем файлы (игнорируем, если не найдены)
+            for path in [image_path, annotation_path]:
+                try:
+                    if os.path.exists(path):
+                        os.remove(path)
+                except OSError as e:
+                    pass
         elif table == 'results':
             record = TestResult.query.get_or_404(id)
-            db.session.delete(record)
         else:
             flash('Неверная таблица')
             return redirect(url_for('database.index'))
-
+        db.session.delete(record)
         db.session.commit()
         flash(f'Запись из таблицы {table} удалена')
     except Exception as e:
@@ -208,6 +354,23 @@ def edit_record(table, id):
                 record.question_text = request.form['question_text']
                 record.correct_answer = request.form['correct_answer']
                 record.question_text = request.form['question_text']
+            elif table == 'topics':
+                record = TestTopic.query.get_or_404(id)
+                name = request.form['name'].strip()
+                description = request.form.get('description', '').strip()
+                if not name:
+                    flash(_('Название темы обязательно'))
+                    return redirect(url_for('database.edit_record', table='topics', id=id))
+                # Проверка уникальности (кроме текущей)
+                existing = TestTopic.query.filter(
+                    TestTopic.name == name,
+                    TestTopic.id != id
+                ).first()
+                if existing:
+                    flash(_('Тема с таким названием уже существует'))
+                    return redirect(url_for('database.edit_record', table='topics', id=id))
+                record.name = name
+                record.description = description
             elif table == 'annotations':
                 record = ImageAnnotation.query.get_or_404(id)
                 record.filename = request.form['filename']
@@ -241,6 +404,9 @@ def edit_record(table, id):
     elif table == 'questions':
         record = Question.query.get_or_404(id)
         return render_template('database/edit_question.html', question=record, topics=topics)
+    elif table == 'topics':  # ← ДОБАВЛЕНО
+        record = TestTopic.query.get_or_404(id)
+        return render_template('database/edit_topic.html', topic=record)
     elif table == 'annotations':
         record = ImageAnnotation.query.get_or_404(id)
         return render_template('database/edit_annotation.html', annotation=record)

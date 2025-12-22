@@ -3,11 +3,11 @@
 Маршруты преподавателя приложения медицинского тестирования
 Содержит логику управления тестами, просмотра результатов и конструктора
 """
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app
 from flask_login import login_required, current_user
 from app import db
 from app.models.user import User
-from app.models.test import TestTopic
+from app.models.test_topics import TestTopic
 from app.models.question import Question
 from app.models.annotation import ImageAnnotation, TestResult
 from app.models.user import User
@@ -19,6 +19,8 @@ import numpy as np
 from app.utils.image_processing import process_coco_annotations, process_yolo_annotations
 from config import Config
 from sqlalchemy import asc, desc
+from urllib.parse import urlparse, urljoin
+from flask_babel import _ # Импортируем _ для перевода flash-сообщений
 
 # Создание Blueprint для маршрутов преподавателя
 bp = Blueprint('teacher', __name__)
@@ -35,7 +37,7 @@ def index():
     else:
         tests = Test.query.filter_by(creator_id=current_user.id).all()'''
 
-    return render_template('teacher/index.html', tests=tests)
+    return render_template('teacher/index.html')
 
 @bp.route('/teacher/create_question', methods=['GET', 'POST'])
 @login_required
@@ -50,9 +52,7 @@ def create_question():
     if current_user.role not in ['admin', 'teacher']:
         flash('Доступ запрещен')
         return redirect(url_for('main.index'))
-
     topics = TestTopic.query.all()
-
     if request.method == 'POST':
         question_text = request.form['question_text']
         question_type = request.form['question_type']
@@ -95,8 +95,9 @@ def create_question():
                 image_filename = f"{name_part_img}_{unique_id}{ext_part_img}"
                 annotation_filename = f"{name_part_ann}_{unique_id}{ext_part_ann}"
 
-                image_path = os.path.join(current_user.app.config['UPLOAD_FOLDER'], 'images', image_filename)
-                annotation_path = os.path.join(current_user.app.config['UPLOAD_FOLDER'], 'annotations', annotation_filename)
+                upload_folder = current_app.config['UPLOAD_FOLDER']
+                image_path = os.path.join(upload_folder, 'images', image_filename)
+                annotation_path = os.path.join(upload_folder, 'annotations', annotation_filename)
 
                 # Создание подкаталогов если не существуют
                 os.makedirs(os.path.dirname(image_path), exist_ok=True)
@@ -124,7 +125,7 @@ def create_question():
 
                 # Создание новой аннотации
                 new_annotation = ImageAnnotation(
-                    filename=image_filename,
+                    image_file=image_filename,
                     annotation_file=annotation_filename,
                     format_type=format_type,
                     labels=json.dumps(processed_data['labels'])
@@ -141,6 +142,7 @@ def create_question():
                 # new_question.correct_answer = str(new_annotation.id)
 
             except Exception as e:
+                print(e)
                 db.session.rollback()
                 flash(f'Ошибка при загрузке файлов: {str(e)}')
                 return render_template('teacher/create_question.html', topics=topics)
@@ -210,9 +212,10 @@ def edit_question(question_id):
                         if other_questions_using_this_annotation == 0:
                             # Удаляем файлы изображения и аннотации
                             try:
-                                os.remove(os.path.join(current_user.app.config['UPLOAD_FOLDER'], 'images', old_annotation.filename))
-                                os.remove(os.path.join(current_user.app.config['UPLOAD_FOLDER'], 'annotations', old_annotation.annotation_file))
+                                os.remove(os.path.join(current_app.config['UPLOAD_FOLDER'], 'images', old_annotation.image_file))
+                                os.remove(os.path.join(current_app.config['UPLOAD_FOLDER'], 'annotations', old_annotation.annotation_file))
                             except FileNotFoundError:
+                                print('FileNotFoundError')
                                 pass # Файлы уже удалены или не существуют
                             # Удаляем запись из БД
                             db.session.delete(old_annotation)
@@ -228,8 +231,8 @@ def edit_question(question_id):
                     image_filename = f"{name_part_img}_{unique_id}{ext_part_img}"
                     annotation_filename = f"{name_part_ann}_{unique_id}{ext_part_ann}"
 
-                    image_path = os.path.join(current_user.app.config['UPLOAD_FOLDER'], 'images', image_filename)
-                    annotation_path = os.path.join(current_user.app.config['UPLOAD_FOLDER'], 'annotations', annotation_filename)
+                    image_path = os.path.join(current_app.config['UPLOAD_FOLDER'], 'images', image_filename)
+                    annotation_path = os.path.join(current_app.config['UPLOAD_FOLDER'], 'annotations', annotation_filename)
 
                     os.makedirs(os.path.dirname(image_path), exist_ok=True)
                     os.makedirs(os.path.dirname(annotation_path), exist_ok=True)
@@ -253,7 +256,7 @@ def edit_question(question_id):
                         return render_template('teacher/edit_question.html', question=question, topics=topics)
 
                     new_annotation = ImageAnnotation(
-                        filename=image_filename,
+                        image_file=image_filename,
                         annotation_file=annotation_filename,
                         format_type=format_type,
                         labels=json.dumps(processed_data['labels'])
@@ -281,38 +284,73 @@ def edit_question(question_id):
 @login_required
 def delete_question(question_id):
     """
-    Маршрут для удаления вопроса
-    Только для преподавателей и администраторов
+    Удаление вопроса с каскадным удалением аннотации и файлов
+
+    Только владелец вопроса или админ могут удалить.
+    Аннотация удаляется только если не используется другими вопросами.
+    Файлы удаляются только при удалении аннотации.
     """
     if current_user.role not in ['admin', 'teacher']:
-        flash('Доступ запрещен')
+        flash(_('Доступ запрещён'))
         return redirect(url_for('main.index'))
 
     question = Question.query.get_or_404(question_id)
 
     # Проверка прав доступа
     if question.creator_id != current_user.id and current_user.role != 'admin':
-        flash('Доступ запрещен')
+        flash(_('Доступ запрещён'))
         return redirect(url_for('teacher.view_questions'))
 
-    # Удаление файла изображения/аннотации если он не используется другими вопросами
-    if question.image_annotation:
-        annotation_to_delete = question.image_annotation
-        other_questions_using_this_annotation = Question.query.filter_by(image_annotation_id=annotation_to_delete.id).filter(Question.id != question.id).count()
-        if other_questions_using_this_annotation == 0:
-            try:
-                os.remove(os.path.join(current_user.app.config['UPLOAD_FOLDER'], 'images', annotation_to_delete.filename))
-                os.remove(os.path.join(current_user.app.config['UPLOAD_FOLDER'], 'annotations', annotation_to_delete.annotation_file))
-            except FileNotFoundError:
-                pass # Файлы уже удалены или не существуют
-            db.session.delete(annotation_to_delete)
+    try:
+        annotation = question.image_annotation
+        annotation_deleted = False
 
-    db.session.delete(question)
-    db.session.commit()
+        # Удаляем аннотацию (и файлы), только если она существует и не используется другими вопросами
+        if annotation:
+            # Проверяем, используется ли аннотация другими вопросами
+            other_count = Question.query.filter(
+                Question.image_annotation_id == annotation.id,
+                Question.id != question.id
+            ).count()
 
-    flash('Вопрос успешно удален')
+            if other_count == 0:
+                # Удаляем файлы
+                upload_folder = current_app.config['UPLOAD_FOLDER']
+                image_path = os.path.join(upload_folder, 'images', annotation.image_file)
+                annotation_path = os.path.join(upload_folder, 'annotations', annotation.annotation_file)
+
+                # Удаляем файлы (игнорируем, если не найдены)
+                for path in [image_path, annotation_path]:
+                    try:
+                        if os.path.exists(path):
+                            os.remove(path)
+                    except OSError as e:
+                        pass
+
+                # Удаляем запись аннотации из БД
+                db.session.delete(annotation)
+                annotation_deleted = True
+
+        # Удаляем вопрос
+        db.session.delete(question)
+        db.session.commit()
+
+        if annotation_deleted:
+            flash(_('Вопрос и связанные файлы успешно удалены'))
+        else:
+            flash(_('Вопрос удалён'))
+
+    except Exception as e:
+        db.session.rollback()
+        #import traceback
+        #traceback.print_exc()
+        flash(_('Ошибка при удалении вопроса. Обратитесь к администратору.'))
+
+    # Возврат с сохранением параметров (пагинация, сортировка)
+    next_url = request.args.get('next')
+    if next_url and is_safe_url(next_url):  # ← убедитесь, что is_safe_url импортирован
+        return redirect(next_url)
     return redirect(url_for('teacher.view_questions'))
-
 
 @bp.route('/teacher/view_questions')
 @login_required
@@ -331,6 +369,13 @@ def view_questions():
         flash('Доступ запрещен')
         return redirect(url_for('main.index'))
 
+    # Параметр количества записей на странице
+    per_page_raw = request.args.get('per_page', '10')
+    try:
+        per_page = int(per_page_raw) if per_page_raw != 'all' else None
+    except (TypeError, ValueError):
+        per_page = 10
+
     # Определяем поля сортировки
     sort_fields = {
         'user': Question.creator_id,
@@ -341,12 +386,7 @@ def view_questions():
 
     # Получаем поле для сортировки
     sort_field = sort_fields.get(sort_by, Question.created_at)
-
-    # Определяем направление сортировки
-    if order == 'asc':
-        sort_expr = asc(sort_field)
-    else:
-        sort_expr = desc(sort_field)
+    sort_expr = asc(sort_field) if order == 'asc' else desc(sort_field)
 
     # Преподаватель видит только свои тесты, администратор - все
     if current_user.role == 'admin':
@@ -354,16 +394,23 @@ def view_questions():
     else:
         query = Question.query.filter_by(creator_id=current_user.id).join(TestTopic, Question.topic_id == TestTopic.id).order_by(sort_expr)
 
-    # Пагинация
+    # Пагинация или выбор всех
     page = request.args.get('page', 1, type=int)
-    per_page = 10  # количество вопросов на странице
-    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
-    questions = pagination.items
+
+    # Пагинация
+    if per_page is None:
+        # Показываем все записи
+        questions = query.all()
+        pagination = None
+    else:
+        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        questions = pagination.items
 
     return render_template('teacher/view_questions.html',
                           questions=questions,
                           topic_map=topic_map,
-                          pagination=pagination)
+                          pagination=pagination,
+                          current_per_page=per_page_raw)
 
 @bp.route('/teacher/view_results')
 @login_required
@@ -385,58 +432,6 @@ def view_results():
         results = TestResult.query.filter(TestResult.test_id.in_(test_ids)).all()
 
     return render_template('teacher/view_results.html', results=results)
-
-@bp.route('/teacher/add_question/<int:test_id>', methods=['POST'])
-@login_required
-def add_question(test_id):
-    """
-    Маршрут для добавления вопроса к тесту
-
-    Args:
-        test_id (int): ID теста
-    """
-    if current_user.role not in ['admin', 'teacher']:
-        return jsonify({'error': 'Доступ запрещен'}), 403
-
-    test = Test.query.get_or_404(test_id)
-    if test.creator_id != current_user.id and current_user.role != 'admin':
-        return jsonify({'error': 'Доступ запрещен'}), 403
-
-    question_type = request.form['question_type']
-    question_text = request.form['question_text']
-    correct_answer = request.form['correct_answer']  # Для графических - ID аннотации, для текстовых - текст
-
-    new_question = Question(
-        test_id=test_id,
-        question_text=question_text,
-        question_type=question_type,
-        correct_answer=correct_answer
-    )
-    db.session.add(new_question)
-    db.session.commit()
-
-    flash('Вопрос добавлен успешно')
-    return redirect(url_for('teacher.edit_test', test_id=test_id))
-
-@bp.route('/teacher/delete_test/<int:test_id>')
-@login_required
-def delete_test(test_id):
-    """
-    Маршрут для удаления теста
-
-    Args:
-        test_id (int): ID теста
-    """
-    if current_user.role != 'admin':
-        flash('Доступ запрещен')
-        return redirect(url_for('teacher.index'))
-
-    test = Test.query.get_or_404(test_id)
-    db.session.delete(test)
-    db.session.commit()
-
-    flash('Тест удален успешно')
-    return redirect(url_for('teacher.view_tests'))
 
 @bp.route('/teacher/generate_variant', methods=['GET', 'POST'])
 @login_required
@@ -493,3 +488,28 @@ def allowed_file(filename, extensions_set):
     """
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in extensions_set
+
+def is_safe_url(target):
+    """
+    Проверяет, что target — безопасный локальный URL.
+    Поддерживает относительные пути ('/admin') и абсолютные локальные URLы
+    ('http://127.0.0.1:5000/admin').
+    """
+    if not target:
+        return False
+
+    # Приводим target к абсолютному URL относительно host_url
+    # Это нормализует как '/path', так и 'http://host/path'
+    host_url = request.host_url.rstrip('/')  # 'http://127.0.0.1:5000'
+    target_url = urljoin(host_url + '/', target).rstrip('/')
+    # → 'http://127.0.0.1:5000/admin/teachers'
+
+    ref = urlparse(host_url)
+    test = urlparse(target_url)
+
+    # Проверяем: тот же протокол (http/https) и тот же хост:порт
+    return (
+        test.scheme in ('http', 'https') and
+        ref.netloc == test.netloc and
+        test.path.startswith('/')  # защита от 'javascript:'
+    )

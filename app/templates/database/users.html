@@ -4,21 +4,108 @@
 {% block title %}{{ _('Пользователи') }} - {{ get_app_name() }}{% endblock %}
 
 {% block content %}
-<h2>{{ _('Пользователи') }}</h2>
+<h2 class="text-center mb-4">{{ _('Пользователи') }}</h2>
 
+<!-- Кэшируем текущие параметры для удобства -->
+{% set current_per_page = request.args.get('per_page', '10') %}
+{% set current_sort_by = request.args.get('sort_by', 'date') %}
+{% set current_order = request.args.get('order', 'desc') %}
+{% set current_page = request.args.get('page', 1) | int %}
+
+<!-- 1. Выбор количества записей — по центру -->
+<div class="mb-4 d-flex justify-content-center align-items-center flex-wrap gap-2">
+    <label for="per_page_select" class="form-label mb-0">{{ _('Записей на странице:') }}</label>
+    <select id="per_page_select" class="form-select w-auto" style="max-width: 120px;">
+        <option value="10" {% if current_per_page == '10' %}selected{% endif %}>10</option>
+        <option value="20" {% if current_per_page == '20' %}selected{% endif %}>20</option>
+        <option value="30" {% if current_per_page == '30' %}selected{% endif %}>30</option>
+        <option value="50" {% if current_per_page == '50' %}selected{% endif %}>50</option>
+        <option value="all" {% if current_per_page == 'all' %}selected{% endif %}>{{ _('Все') }}</option>
+    </select>
+</div>
+
+<!-- Скрытая форма для отправки per_page с сохранением остальных параметров -->
+<form method="GET" class="d-none" id="per_page_form">
+    {% if current_sort_by %}<input type="hidden" name="sort_by" value="{{ current_sort_by }}">{% endif %}
+    {% if current_order %}<input type="hidden" name="order" value="{{ current_order }}">{% endif %}
+    {% if pagination and pagination.page %}<input type="hidden" name="page" value="{{ pagination.page }}">{% elif current_page != 1 %}<input type="hidden" name="page" value="{{ current_page }}">{% endif %}
+    <input type="hidden" name="per_page" id="per_page_input">
+</form>
+
+<script>
+    document.getElementById('per_page_select').addEventListener('change', function() {
+        document.getElementById('per_page_input').value = this.value;
+        document.getElementById('per_page_form').submit();
+    });
+</script>
+
+<!-- 2. Таблица пользователей -->
 <div class="table-responsive">
-    <table class="table table-striped">
+    <table class="table table-striped align-middle">
         <thead>
             <tr>
                 <th>{{ _('ID') }}</th>
                 <th>{{ _('Имя пользователя') }}</th>
-                <th>{{ _('Роль') }}</th>
+                <th>
+                    <a href="{{ url_for('database.users',
+                            sort_by='role',
+                            order='asc' if current_sort_by == 'role' and current_order == 'desc' else 'desc',
+                            page=1,
+                            per_page=current_per_page
+                        ) }}"
+                        class="text-decoration-none text-dark d-flex align-items-center gap-1">
+                        {{ _('Роль') }}
+                        {% if current_sort_by == 'role' %}
+                        <i class="bi bi-arrow-{% if current_order == 'desc' %}down{% else %}up{% endif %}"></i>
+                        {% endif %}
+                    </a>
+                </th>
                 <th>{{ _('Язык') }}</th>
                 <th>{{ _('Тема') }}</th>
-                <th>{{ _('Фамилия') }}</th>
+                <th>
+                    <a href="{{ url_for('database.users',
+                            sort_by='first_name',
+                            order='asc' if current_sort_by == 'first_name' and current_order == 'desc' else 'desc',
+                            page=1,
+                            per_page=current_per_page
+                        ) }}"
+                       class="text-decoration-none text-dark d-flex align-items-center gap-1">
+                        {{ _('Фамилия') }}
+                        {% if current_sort_by == 'first_name' %}
+                        <i class="bi bi-arrow-{% if current_order == 'desc' %}down{% else %}up{% endif %}"></i>
+                        {% endif %}
+                    </a>
+                </th>
                 <th>{{ _('Имя') }}</th>
                 <th>{{ _('Отчество') }}</th>
-                <th>{{ _('Дата создания') }}</th>
+                <th>
+                    <a href="{{ url_for('database.users',
+                            sort_by='group_number',
+                            order='asc' if current_sort_by == 'group_number' and current_order == 'desc' else 'desc',
+                            page=1,
+                            per_page=current_per_page
+                        ) }}"
+                       class="text-decoration-none text-dark d-flex align-items-center gap-1">
+                        {{ _('Номер группы') }}
+                        {% if current_sort_by == 'group_number' %}
+                        <i class="bi bi-arrow-{% if current_order == 'desc' %}down{% else %}up{% endif %}"></i>
+                        {% endif %}
+                    </a>
+                </th>
+                <th>
+                    <a href="{{ url_for('database.users',
+                            sort_by='date',
+                            order='asc' if current_sort_by == 'date' and current_order == 'desc' else 'desc',
+                            page=1,
+                            per_page=current_per_page
+                        ) }}"
+                        class="text-decoration-none text-dark d-flex align-items-center gap-1">
+                        {{ _('Дата создания') }}
+                        {% if current_sort_by == 'date' %}
+                        <i class="bi bi-arrow-{% if current_order == 'desc' %}down{% else %}up{% endif %}"></i>
+                        {% endif %}
+                    </a>
+                </th>
                 <th>{{ _('Действия') }}</th>
             </tr>
         </thead>
@@ -37,23 +124,85 @@
                 <td>{{ user.first_name }}</td>
                 <td>{{ user.last_name }}</td>
                 <td>{{ user.middle_name }}</td>
+                <td>{{ user.group_number }}</td>
                 <td>{{ user.created_at.strftime('%Y-%m-%d %H:%M') if user.created_at else _('N/A') }}</td>
                 <td>
                     <a href="{{ url_for('database.edit_record', table='users', id=user.id) }}" class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-pencil"></i> {{ _('Редактировать') }}
+                        <i class="bi bi-pencil"></i>
                     </a>
                     <a href="{{ url_for('database.delete_record', table='users', id=user.id) }}"
                        class="btn btn-sm btn-outline-danger"
                        onclick="return confirm('{{ _('Удалить пользователя?') }}')">
-                        <i class="bi bi-trash"></i> {{ _('Удалить') }}
+                        <i class="bi bi-trash"></i>
                     </a>
                 </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="11" class="text-center text-muted py-3">{{ _('Пользователи не найдены') }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
-    <div class="d-grid gap-2">
-        <a href="{{ url_for('database.index') }}" class="btn btn-primary">{{ _('назад') }}</a>
-    </div>
 </div>
+
+<!-- 3. Пагинация (только если используется постраничный вывод) -->
+{% if pagination and pagination.pages > 1 %}
+<div class="mt-4 mb-4 d-flex justify-content-center">
+    <nav aria-label="{{ _('Навигация по страницам') }}">
+        <ul class="pagination mb-0">
+            {% if pagination.has_prev %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('database.users',
+                        page=pagination.prev_num,
+                        sort_by=current_sort_by,
+                        order=current_order,
+                        per_page=current_per_page
+                    ) }}">{{ _('Предыдущая') }}</a>
+            </li>
+            {% endif %}
+
+            {% for page_num in pagination.iter_pages() %}
+                {% if page_num %}
+                    {% if page_num != pagination.page %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('database.users',
+                                page=page_num,
+                                sort_by=current_sort_by,
+                                order=current_order,
+                                per_page=current_per_page
+                            ) }}">{{ page_num }}</a>
+                    </li>
+                    {% else %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ page_num }}</span>
+                    </li>
+                    {% endif %}
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">…</span>
+                </li>
+                {% endif %}
+            {% endfor %}
+
+            {% if pagination.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('database.users',
+                        page=pagination.next_num,
+                        sort_by=current_sort_by,
+                        order=current_order,
+                        per_page=current_per_page
+                    ) }}">{{ _('Следующая') }}</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+</div>
+{% endif %}
+
+<!-- 4. Кнопка "Назад" -->
+<div class="d-grid gap-2">
+    <a href="{{ url_for('database.index') }}" class="btn btn-primary">{{ _('назад') }}</a>
+</div>
+
 {% endblock %}
