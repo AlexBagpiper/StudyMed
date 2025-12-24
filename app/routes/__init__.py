@@ -6,4 +6,4 @@
 from flask import Blueprint
 
 # Определение всех blueprints
-__all__ = ['auth_bp', 'main_bp', 'admin_bp', 'teacher_bp', 'student_bp']
+__all__ = ['auth_bp', 'main_bp', 'admin_bp', 'teacher_bp', 'student_bp', 'database_bp']

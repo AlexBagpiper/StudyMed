@@ -1,10 +1,10 @@
-<!-- app/templates/database/annotations.html -->
+<!-- app/templates/admin/topics.html -->
 {% extends "base.html" %}
 
-{% block title %}{{ _('Аннотации') }} - {{ get_app_name() }}{% endblock %}
+{% block title %}{{ _('Темы тестов') }} - {{ get_app_name() }}{% endblock %}
 
 {% block content %}
-<h2 class="text-center mb-4">{{ _('Аннотации') }}</h2>
+<h2 class="text-center mb-4">{{ _('Темы тестов') }}</h2>
 
 <!-- Кэшируем параметры -->
 {% set current_per_page = request.args.get('per_page', '10') %}
@@ -38,13 +38,13 @@
     });
 </script>
 
-<!-- Таблица аннотаций -->
+<!-- Таблица тем -->
 <div class="table-responsive">
     <table class="table table-striped align-middle">
         <thead>
             <tr>
                 <th>
-                    <a href="{{ url_for('database.annotations',
+                    <a href="{{ url_for('admin.topics',
                             sort_by='id',
                             order='asc' if current_sort_by == 'id' and current_order == 'desc' else 'desc',
                             page=1,
@@ -58,56 +58,29 @@
                     </a>
                 </th>
                 <th>
-                    <a href="{{ url_for('database.annotations',
-                            sort_by='image',
-                            order='asc' if current_sort_by == 'image' and current_order == 'desc' else 'desc',
+                    <a href="{{ url_for('admin.topics',
+                            sort_by='name',
+                            order='asc' if current_sort_by == 'name' and current_order == 'desc' else 'desc',
                             page=1,
                             per_page=current_per_page
                         ) }}"
                        class="text-decoration-none text-dark d-flex align-items-center gap-1">
-                        {{ _('Изображение') }}
-                        {% if current_sort_by == 'image' %}
+                        {{ _('Название') }}
+                        {% if current_sort_by == 'name' %}
                         <i class="bi bi-arrow-{% if current_order == 'desc' %}down{% else %}up{% endif %}"></i>
                         {% endif %}
                     </a>
                 </th>
+                <th>{{ _('Описание') }}</th>
                 <th>
-                    <a href="{{ url_for('database.annotations',
-                            sort_by='annotation',
-                            order='asc' if current_sort_by == 'annotation' and current_order == 'desc' else 'desc',
-                            page=1,
-                            per_page=current_per_page
-                        ) }}"
-                       class="text-decoration-none text-dark d-flex align-items-center gap-1">
-                        {{ _('Аннотация') }}
-                        {% if current_sort_by == 'annotation' %}
-                        <i class="bi bi-arrow-{% if current_order == 'desc' %}down{% else %}up{% endif %}"></i>
-                        {% endif %}
-                    </a>
-                </th>
-                <th>
-                    <a href="{{ url_for('database.annotations',
-                            sort_by='format',
-                            order='asc' if current_sort_by == 'format' and current_order == 'desc' else 'desc',
-                            page=1,
-                            per_page=current_per_page
-                        ) }}"
-                       class="text-decoration-none text-dark d-flex align-items-center gap-1">
-                        {{ _('Формат') }}
-                        {% if current_sort_by == 'format' %}
-                        <i class="bi bi-arrow-{% if current_order == 'desc' %}down{% else %}up{% endif %}"></i>
-                        {% endif %}
-                    </a>
-                </th>
-                <th>
-                    <a href="{{ url_for('database.annotations',
+                    <a href="{{ url_for('admin.topics',
                             sort_by='date',
                             order='asc' if current_sort_by == 'date' and current_order == 'desc' else 'desc',
                             page=1,
                             per_page=current_per_page
                         ) }}"
                        class="text-decoration-none text-dark d-flex align-items-center gap-1">
-                        {{ _('Дата') }}
+                        {{ _('Дата создания') }}
                         {% if current_sort_by == 'date' %}
                         <i class="bi bi-arrow-{% if current_order == 'desc' %}down{% else %}up{% endif %}"></i>
                         {% endif %}
@@ -117,26 +90,23 @@
             </tr>
         </thead>
         <tbody>
-            {% for annotation in annotations %}
+            {% for topic in topics %}
             <tr>
-                <td>{{ annotation.id }}</td>
-                <td class="text-nowrap">{{ annotation.image_file|truncate(50) }}</td>
-                <td class="text-nowrap">{{ annotation.annotation_file|truncate(50) }}</td>
-                <td>
-                    <span class="badge bg-{{ 'primary' if annotation.format_type == 'coco' else 'success' if annotation.format_type == 'yolo' else 'secondary' }}">
-                        {{ annotation.format_type|upper }}
-                    </span>
+                <td>{{ topic.id }}</td>
+                <td>{{ topic.name }}</td>
+                <td style="max-width: 300px; white-space: word-break: break-word; vertical-align: top;">
+                    {{ topic.description or '—' }}
                 </td>
-                <td>{{ annotation.created_at.strftime('%Y-%m-%d %H:%M') if annotation.created_at else '—' }}</td>
+                <td>{{ topic.created_at.strftime('%Y-%m-%d %H:%M') if topic.created_at else '—' }}</td>
                 <td>
-                    <a href="{{ url_for('database.edit_record', table='annotations', id=annotation.id) }}?next={{ request.url|urlencode }}"
+                    <a href="{{ url_for('database.edit_record', table='topics', id=topic.id) }}?next={{ request.url|urlencode }}"
                        class="btn btn-sm btn-outline-primary"
                        title="{{ _('Редактировать') }}">
                         <i class="bi bi-pencil"></i>
                     </a>
-                    <a href="{{ url_for('database.delete_record', table='annotations', id=annotation.id) }}?next={{ request.url|urlencode }}"
+                    <a href="{{ url_for('database.delete_record', table='topics', id=topic.id) }}?next={{ request.url|urlencode }}"
                        class="btn btn-sm btn-outline-danger"
-                       onclick="return confirm('{{ _('Удалить аннотацию «%(file)s»?', file=annotation.annotation_file) }}')"
+                       onclick="return confirm('{{ _('Удалить тему «%(name)s»?', name=topic.name) }}')"
                        title="{{ _('Удалить') }}">
                         <i class="bi bi-trash"></i>
                     </a>
@@ -144,7 +114,7 @@
             </tr>
             {% else %}
             <tr>
-                <td colspan="7" class="text-center text-muted py-3">{{ _('Аннотации не найдены') }}</td>
+                <td colspan="5" class="text-center text-muted py-3">{{ _('Темы не найдены') }}</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -158,7 +128,7 @@
         <ul class="pagination mb-0">
             {% if pagination.has_prev %}
             <li class="page-item">
-                <a class="page-link" href="{{ url_for('database.annotations',
+                <a class="page-link" href="{{ url_for('admin.topics',
                         page=pagination.prev_num,
                         sort_by=current_sort_by,
                         order=current_order,
@@ -171,7 +141,7 @@
                 {% if page_num %}
                     {% if page_num != pagination.page %}
                     <li class="page-item">
-                        <a class="page-link" href="{{ url_for('database.annotations',
+                        <a class="page-link" href="{{ url_for('admin.topics',
                                 page=page_num,
                                 sort_by=current_sort_by,
                                 order=current_order,
@@ -192,7 +162,7 @@
 
             {% if pagination.has_next %}
             <li class="page-item">
-                <a class="page-link" href="{{ url_for('database.annotations',
+                <a class="page-link" href="{{ url_for('admin.topics',
                         page=pagination.next_num,
                         sort_by=current_sort_by,
                         order=current_order,

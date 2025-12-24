@@ -6,7 +6,7 @@
 import cv2
 import numpy as np
 from app.models.annotation import ImageAnnotation
-from app.utils.image_processing import process_coco_annotations, process_yolo_annotations
+from app.utils.image_processing import process_coco_annotations
 from config import Config
 import math
 import os

@@ -7,8 +7,9 @@ from flask_sqlalchemy import SQLAlchemy
 
 # Импорт всех моделей
 from .user import User
-from .test import TestTopic
+from .test_topics import TestTopic
 from .question import Question
 from .annotation import ImageAnnotation, TestResult
+from .test_variant import Test, Variant
 
-__all__ = ['User', 'Test', 'Question', 'ImageAnnotation', 'TestResult', 'TestTopic']
+__all__ = ['User', 'Question', 'ImageAnnotation', 'TestResult', 'TestTopic', 'Test', 'Variant']

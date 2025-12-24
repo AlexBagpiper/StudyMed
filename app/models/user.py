@@ -9,6 +9,7 @@ from app import db
 from datetime import datetime
 from sqlalchemy import String, Integer, DateTime, Float, Text, ForeignKey
 import re
+from werkzeug.security import generate_password_hash, check_password_hash
 
 class User(UserMixin, db.Model):
     """
@@ -26,8 +27,6 @@ class User(UserMixin, db.Model):
         middle_name (str): Отчество пользователя (для студентов/преподавателей)
         group_number (str): Номер группы (для студентов)
         created_at (datetime): Дата создания пользователя
-        created_tests (relationship): Связь с созданными тестами
-        test_results (relationship): Связь с результатами тестов
     """
 
     __tablename__ = 'users'
@@ -46,8 +45,6 @@ class User(UserMixin, db.Model):
     created_at = db.Column(DateTime, default=datetime.utcnow)
 
     # Связи с другими моделями
-    # указывает на атрибут 'creator' в Test
-    #created_tests = db.relationship('Test', back_populates='creator', lazy=True, foreign_keys='Test.creator_id')
     # указывает на атрибут 'user' в TestResult
     test_results = db.relationship('TestResult', back_populates='user', lazy=True)
     # creator_questions - вопросы, созданные пользователем
@@ -104,18 +101,24 @@ class User(UserMixin, db.Model):
         if self.last_name:
             initials = ""
             if self.first_name:
-                initials += f"{self.first_name[0]}." if len(self.first_name) > 0 else ""
+                initials += f"{self.last_name[0]}." if len(self.last_name) > 0 else ""
             if self.middle_name:
                 initials += f"{self.middle_name[0]}." if len(self.middle_name) > 0 else ""
             # Убираем лишние точки и пробелы
             #initials = initials.strip(". ")
             if initials:
-                return f"{self.last_name} {initials}"
+                return f"{self.first_name} {initials}"
             else:
                 # Если есть фамилия, но нет других частей ФИО
-                return self.last_name
+                return self.first_name
         # Если фамилии нет, возвращаем username
         return self.username
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
 
     @staticmethod
     def is_valid_email(username):

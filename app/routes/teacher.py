@@ -1,64 +1,128 @@
-# app/routes/teacher.py (новый файл)
 """
 Маршруты преподавателя приложения медицинского тестирования
 Содержит логику управления тестами, просмотра результатов и конструктора
 """
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, jsonify
 from flask_login import login_required, current_user
 from app import db
-from app.models.user import User
 from app.models.test_topics import TestTopic
 from app.models.question import Question
 from app.models.annotation import ImageAnnotation, TestResult
-from app.models.user import User
+from app.models.test_variant import Test, Variant
 from werkzeug.utils import secure_filename
 import os
+import uuid
 import json
-import cv2
-import numpy as np
-from app.utils.image_processing import process_coco_annotations, process_yolo_annotations
-from config import Config
-from sqlalchemy import asc, desc
+import random
+from app.utils.image_processing import parse_coco_for_image
+from sqlalchemy import asc, desc, func
 from urllib.parse import urlparse, urljoin
-from flask_babel import _ # Импортируем _ для перевода flash-сообщений
+from flask_babel import _
 
-# Создание Blueprint для маршрутов преподавателя
+
 bp = Blueprint('teacher', __name__)
+
+
+# === Вспомогательные функции ===
+
+def allowed_file(filename, extensions_set):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in extensions_set
+
+
+def is_safe_url(target):
+    if not target:
+        return False
+
+    host_url = request.host_url.rstrip('/')
+    target_url = urljoin(host_url + '/', target).rstrip('/')
+
+    ref = urlparse(host_url)
+    test = urlparse(target_url)
+
+    return (
+        test.scheme in ('http', 'https') and
+        ref.netloc == test.netloc and
+        test.path.startswith('/')
+    )
+
+
+def generate_variants_batch_impl(test, count, user_role, user_id):
+    """
+    Генерирует `count` вариантов для теста.
+    Возвращает: (список Variant, список ошибок)
+    """
+    if count < 1 or count > 50:
+        return [], [_('Количество должно быть от 1 до 50')]
+
+    try:
+        structure = json.loads(test.structure) if test.structure else []
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return [], [_('Некорректная структура теста')]
+
+    if not structure:
+        return [], [_('Структура теста пуста')]
+
+    new_variants = []
+    errors = []
+
+    for i in range(count):
+        question_id_list = []
+        for item in structure:
+            topic_id = item.get('topic_id')
+            q_type = item.get('question_type')
+
+            if not topic_id or not q_type:
+                errors.append(_('Ошибка в структуре: пустой элемент'))
+                continue
+
+            query = Question.query.filter_by(topic_id=topic_id, question_type=q_type)
+            if user_role != 'admin':
+                query = query.filter(Question.creator_id == user_id)
+
+            available = query.all()
+            if not available:
+                errors.append(
+                    _('Нет вопросов для: тема %(topic)s, тип %(type)s (вариант %(num)d)',
+                      topic=topic_id, type=q_type, num=i + 1)
+                )
+                break
+
+            chosen = random.choice(available)
+            question_id_list.append(chosen.id)
+        else:
+            new_variant = Variant(
+                test_id=test.id,
+                question_id_list=json.dumps(question_id_list, ensure_ascii=False)
+            )
+            new_variants.append(new_variant)
+            continue
+        break
+
+    return new_variants, errors
+
+
+# === Роуты ===
 
 @bp.route('/teacher')
 @login_required
 def index():
-    """
-    Главная страница преподавателя - отображает меню
-    """
-    # Преподаватель видит только свои тесты (или все, если админ)
-    '''if current_user.role == 'admin':
-        tests = Test.query.all()
-    else:
-        tests = Test.query.filter_by(creator_id=current_user.id).all()'''
-
     return render_template('teacher/index.html')
+
 
 @bp.route('/teacher/create_question', methods=['GET', 'POST'])
 @login_required
 def create_question():
-    """
-    Маршрут для создания нового вопроса (добавления в базу вопросов)
-    Только для преподавателей и администраторов
-
-    GET: Отображает форму создания вопроса
-    POST: Обрабатывает данные формы и создает вопрос
-    """
     if current_user.role not in ['admin', 'teacher']:
-        flash('Доступ запрещен')
+        flash(_('Доступ запрещён'))
         return redirect(url_for('main.index'))
+
     topics = TestTopic.query.all()
+
     if request.method == 'POST':
         question_text = request.form['question_text']
         question_type = request.form['question_type']
         topic_id = request.form['topic_id']
 
-        # Создание нового вопроса
         new_question = Question(
             question_text=question_text,
             question_type=question_type,
@@ -67,117 +131,101 @@ def create_question():
         )
 
         if question_type == 'graphic':
-            # Обработка загрузки изображения и аннотации
             image_file = request.files.get('image_file')
             annotation_file = request.files.get('annotation_file')
 
             if not image_file or not annotation_file:
-                flash('Для графических вопросов требуются файлы изображения и аннотации')
+                flash(_('Для графических вопросов требуются файлы изображения и аннотации'))
                 return render_template('teacher/create_question.html', topics=topics)
 
-            # Проверка расширений
-            from config import Config
-            if not allowed_file(image_file.filename, Config.ALLOWED_IMAGE_EXTENSIONS) or \
-               not allowed_file(annotation_file.filename, Config.ALLOWED_ANNOTATION_EXTENSIONS):
-                flash('Неверный формат файла')
+            allowed_image_ext = set(current_app.config.get('ALLOWED_IMAGE_EXTENSIONS', {'png', 'jpg', 'jpeg'}))
+            allowed_ann_ext = set(current_app.config.get('ALLOWED_ANNOTATION_EXTENSIONS', {'json'}))
+
+            if not allowed_file(image_file.filename, allowed_image_ext) or \
+               not allowed_file(annotation_file.filename, allowed_ann_ext):
+                flash(_('Неверный формат файла'))
                 return render_template('teacher/create_question.html', topics=topics)
 
             try:
-                # Сохранение файлов
                 image_filename = secure_filename(image_file.filename)
                 annotation_filename = secure_filename(annotation_file.filename)
 
-                # Создание уникальных имен файлов (опционально)
-                import uuid
                 unique_id = str(uuid.uuid4())[:8]
                 name_part_img, ext_part_img = os.path.splitext(image_filename)
                 name_part_ann, ext_part_ann = os.path.splitext(annotation_filename)
+
+                raw_image_filename = f"{name_part_img}{ext_part_img}"
                 image_filename = f"{name_part_img}_{unique_id}{ext_part_img}"
                 annotation_filename = f"{name_part_ann}_{unique_id}{ext_part_ann}"
 
-                upload_folder = current_app.config['UPLOAD_FOLDER']
+                upload_folder = current_app.config.get('UPLOAD_FOLDER')
+                if not upload_folder:
+                    raise RuntimeError("UPLOAD_FOLDER not configured")
+
                 image_path = os.path.join(upload_folder, 'images', image_filename)
                 annotation_path = os.path.join(upload_folder, 'annotations', annotation_filename)
 
-                # Создание подкаталогов если не существуют
                 os.makedirs(os.path.dirname(image_path), exist_ok=True)
                 os.makedirs(os.path.dirname(annotation_path), exist_ok=True)
 
                 image_file.save(image_path)
                 annotation_file.save(annotation_path)
 
-                # Определение типа формата
                 format_type = 'coco' if annotation_filename.endswith('.json') else 'yolo'
 
-                # Обработка аннотаций
                 if format_type == 'coco':
-                    processed_data = process_coco_annotations(annotation_path)
-                else:  # YOLO
-                    img = cv2.imread(image_path)
-                    if img is None:
-                        flash('Не удалось загрузить изображение для обработки YOLO')
+                    success, result = parse_coco_for_image(annotation_path, raw_image_filename, unique_id)
+                    if not success:
+                        flash(result)
+                        try:
+                            os.remove(image_path)
+                        except OSError:
+                            pass
                         return render_template('teacher/create_question.html', topics=topics)
-                    processed_data = process_yolo_annotations(annotation_path, img.shape)
+                    else:
+                        os.remove(annotation_path)
+                        annotation_filename = result
 
-                if processed_data is None:
-                    flash('Не удалось обработать файл аннотации')
-                    return render_template('teacher/create_question.html', topics=topics)
-
-                # Создание новой аннотации
                 new_annotation = ImageAnnotation(
                     image_file=image_filename,
                     annotation_file=annotation_filename,
-                    format_type=format_type,
-                    labels=json.dumps(processed_data['labels'])
+                    format_type=format_type
                 )
 
                 db.session.add(new_annotation)
-                db.session.flush() # Получаем ID новой аннотации до коммита основного вопроса
-
-                # Связываем вопрос с аннотацией
+                db.session.flush()
                 new_question.image_annotation_id = new_annotation.id
-                # Для графических вопросов, correct_answer может содержать ID аннотации
-                # или использоваться image_annotation_id. В данном случае используем image_annotation_id.
-                # Если нужно хранить ID в correct_answer, раскомментируйте следующую строку:
-                # new_question.correct_answer = str(new_annotation.id)
 
             except Exception as e:
-                print(e)
                 db.session.rollback()
-                flash(f'Ошибка при загрузке файлов: {str(e)}')
+                current_app.logger.exception("Error in create_question (graphic)")
+                flash(_('Ошибка при загрузке файлов: %(error)s', error=str(e)))
                 return render_template('teacher/create_question.html', topics=topics)
 
         elif question_type == 'open':
-            # Для текстовых вопросов сохраняем ответ
-            correct_answer = request.form.get('correct_answer', '')
+            correct_answer = request.form.get('correct_answer', '').strip()
             new_question.correct_answer = correct_answer
 
-        # Сохранение вопроса в базу данных
         db.session.add(new_question)
         db.session.commit()
-
-        flash('Вопрос успешно создан')
-        return redirect(url_for('teacher.view_questions')) # Перенаправляем на список вопросов
+        flash(_('Вопрос успешно создан'))
+        return redirect(url_for('teacher.view_questions'))
 
     return render_template('teacher/create_question.html', topics=topics)
+
 
 @bp.route('/teacher/edit_question/<int:question_id>', methods=['GET', 'POST'])
 @login_required
 def edit_question(question_id):
-    """
-    Маршрут для редактирования вопроса
-    Только для преподавателей и администраторов
-    """
     if current_user.role not in ['admin', 'teacher']:
-        flash('Доступ запрещен')
+        flash(_('Доступ запрещён'))
         return redirect(url_for('main.index'))
 
     question = Question.query.get_or_404(question_id)
     topics = TestTopic.query.all()
 
-    # Проверка прав доступа (только админ или создатель теста, к которому принадлежит вопрос)
     if question.creator_id != current_user.id and current_user.role != 'admin':
-        flash('Доступ запрещен')
+        flash(_('Доступ запрещён'))
         return redirect(url_for('teacher.view_questions'))
 
     if request.method == 'POST':
@@ -186,53 +234,60 @@ def edit_question(question_id):
         question.question_type = request.form['question_type']
 
         if question.question_type == 'open':
-            question.correct_answer = request.form.get('correct_answer', '')
-            # Убираем связь с изображением для текстовых вопросов
+            question.correct_answer = request.form.get('correct_answer', '').strip()
             question.image_annotation_id = None
+
         elif question.question_type == 'graphic':
-            # Обработка графического вопроса
-            # В простом варианте, мы не меняем изображение/аннотацию, только текст вопроса
-            # Если нужно изменить изображение/аннотацию, потребуется более сложная логика
             new_image_file = request.files.get('image_file')
             new_annotation_file = request.files.get('annotation_file')
 
             if new_image_file and new_annotation_file:
-                # Проверка расширений
-                if not allowed_file(new_image_file.filename, Config.ALLOWED_IMAGE_EXTENSIONS) or \
-                   not allowed_file(new_annotation_file.filename, Config.ALLOWED_ANNOTATION_EXTENSIONS):
-                    flash('Неверный формат файла')
+                allowed_image_ext = set(current_app.config.get('ALLOWED_IMAGE_EXTENSIONS', {'png', 'jpg', 'jpeg'}))
+                allowed_ann_ext = set(current_app.config.get('ALLOWED_ANNOTATION_EXTENSIONS', {'json'}))
+
+                if not allowed_file(new_image_file.filename, allowed_image_ext) or \
+                   not allowed_file(new_annotation_file.filename, allowed_ann_ext):
+                    flash(_('Неверный формат файла'))
                     return render_template('teacher/edit_question.html', question=question, topics=topics)
 
                 try:
-                    # Удаление старого файла если он был и не используется в других вопросах
                     if question.image_annotation:
                         old_annotation = question.image_annotation
-                        # Проверяем, используется ли аннотация в других вопросах
-                        other_questions_using_this_annotation = Question.query.filter_by(image_annotation_id=old_annotation.id).filter(Question.id != question.id).count()
-                        if other_questions_using_this_annotation == 0:
-                            # Удаляем файлы изображения и аннотации
-                            try:
-                                os.remove(os.path.join(current_app.config['UPLOAD_FOLDER'], 'images', old_annotation.image_file))
-                                os.remove(os.path.join(current_app.config['UPLOAD_FOLDER'], 'annotations', old_annotation.annotation_file))
-                            except FileNotFoundError:
-                                print('FileNotFoundError')
-                                pass # Файлы уже удалены или не существуют
-                            # Удаляем запись из БД
+                        other_count = Question.query.filter(
+                            Question.image_annotation_id == old_annotation.id,
+                            Question.id != question_id
+                        ).count()
+
+                        if other_count == 0:
+                            upload_folder = current_app.config.get('UPLOAD_FOLDER')
+                            if upload_folder:
+                                img_path = os.path.join(upload_folder, 'images', old_annotation.image_file)
+                                ann_path = os.path.join(upload_folder, 'annotations', old_annotation.annotation_file)
+                                for p in [img_path, ann_path]:
+                                    if os.path.exists(p):
+                                        try:
+                                            os.remove(p)
+                                        except OSError as e:
+                                            current_app.logger.warning(f"Failed to remove {p}: {e}")
                             db.session.delete(old_annotation)
 
-                    # Сохранение новых файлов (аналогично create_question)
                     image_filename = secure_filename(new_image_file.filename)
                     annotation_filename = secure_filename(new_annotation_file.filename)
 
-                    import uuid
                     unique_id = str(uuid.uuid4())[:8]
                     name_part_img, ext_part_img = os.path.splitext(image_filename)
                     name_part_ann, ext_part_ann = os.path.splitext(annotation_filename)
+
+                    raw_image_filename = f"{name_part_img}{ext_part_img}"
                     image_filename = f"{name_part_img}_{unique_id}{ext_part_img}"
                     annotation_filename = f"{name_part_ann}_{unique_id}{ext_part_ann}"
 
-                    image_path = os.path.join(current_app.config['UPLOAD_FOLDER'], 'images', image_filename)
-                    annotation_path = os.path.join(current_app.config['UPLOAD_FOLDER'], 'annotations', annotation_filename)
+                    upload_folder = current_app.config.get('UPLOAD_FOLDER')
+                    if not upload_folder:
+                        raise RuntimeError("UPLOAD_FOLDER not configured")
+
+                    image_path = os.path.join(upload_folder, 'images', image_filename)
+                    annotation_path = os.path.join(upload_folder, 'annotations', annotation_filename)
 
                     os.makedirs(os.path.dirname(image_path), exist_ok=True)
                     os.makedirs(os.path.dirname(annotation_path), exist_ok=True)
@@ -243,60 +298,49 @@ def edit_question(question_id):
                     format_type = 'coco' if annotation_filename.endswith('.json') else 'yolo'
 
                     if format_type == 'coco':
-                        processed_data = process_coco_annotations(annotation_path)
-                    else:
-                        img = cv2.imread(image_path)
-                        if img is None:
-                            flash('Не удалось загрузить изображение для обработки YOLO')
+                        success, result = parse_coco_for_image(annotation_path, raw_image_filename, unique_id)
+                        if not success:
+                            flash(result)
+                            try:
+                                os.remove(image_path)
+                            except OSError:
+                                pass
                             return render_template('teacher/edit_question.html', question=question, topics=topics)
-                        processed_data = process_yolo_annotations(annotation_path, img.shape)
-
-                    if processed_data is None:
-                        flash('Не удалось обработать файл аннотации')
-                        return render_template('teacher/edit_question.html', question=question, topics=topics)
+                        os.remove(annotation_path)
+                        annotation_filename = result
 
                     new_annotation = ImageAnnotation(
                         image_file=image_filename,
                         annotation_file=annotation_filename,
-                        format_type=format_type,
-                        labels=json.dumps(processed_data['labels'])
+                        format_type=format_type
                     )
 
                     db.session.add(new_annotation)
                     db.session.flush()
-
                     question.image_annotation_id = new_annotation.id
-                    # Если нужно хранить ID в correct_answer:
-                    # question.correct_answer = str(new_annotation.id)
 
                 except Exception as e:
                     db.session.rollback()
-                    flash(f'Ошибка при обновлении файлов: {str(e)}')
+                    current_app.logger.exception("Error in edit_question (graphic)")
+                    flash(_('Ошибка при обновлении файлов: %(error)s', error=str(e)))
                     return render_template('teacher/edit_question.html', question=question, topics=topics)
 
         db.session.commit()
-        flash('Вопрос успешно обновлен')
+        flash(_('Вопрос успешно обновлён'))
         return redirect(url_for('teacher.view_questions'))
 
     return render_template('teacher/edit_question.html', question=question, topics=topics)
 
+
 @bp.route('/teacher/delete_question/<int:question_id>')
 @login_required
 def delete_question(question_id):
-    """
-    Удаление вопроса с каскадным удалением аннотации и файлов
-
-    Только владелец вопроса или админ могут удалить.
-    Аннотация удаляется только если не используется другими вопросами.
-    Файлы удаляются только при удалении аннотации.
-    """
     if current_user.role not in ['admin', 'teacher']:
         flash(_('Доступ запрещён'))
         return redirect(url_for('main.index'))
 
     question = Question.query.get_or_404(question_id)
 
-    # Проверка прав доступа
     if question.creator_id != current_user.id and current_user.role != 'admin':
         flash(_('Доступ запрещён'))
         return redirect(url_for('teacher.view_questions'))
@@ -305,33 +349,26 @@ def delete_question(question_id):
         annotation = question.image_annotation
         annotation_deleted = False
 
-        # Удаляем аннотацию (и файлы), только если она существует и не используется другими вопросами
         if annotation:
-            # Проверяем, используется ли аннотация другими вопросами
             other_count = Question.query.filter(
                 Question.image_annotation_id == annotation.id,
-                Question.id != question.id
+                Question.id != question_id
             ).count()
 
             if other_count == 0:
-                # Удаляем файлы
-                upload_folder = current_app.config['UPLOAD_FOLDER']
-                image_path = os.path.join(upload_folder, 'images', annotation.image_file)
-                annotation_path = os.path.join(upload_folder, 'annotations', annotation.annotation_file)
-
-                # Удаляем файлы (игнорируем, если не найдены)
-                for path in [image_path, annotation_path]:
-                    try:
-                        if os.path.exists(path):
-                            os.remove(path)
-                    except OSError as e:
-                        pass
-
-                # Удаляем запись аннотации из БД
+                upload_folder = current_app.config.get('UPLOAD_FOLDER')
+                if upload_folder:
+                    img_path = os.path.join(upload_folder, 'images', annotation.image_file)
+                    ann_path = os.path.join(upload_folder, 'annotations', annotation.annotation_file)
+                    for p in [img_path, ann_path]:
+                        if os.path.exists(p):
+                            try:
+                                os.remove(p)
+                            except OSError as e:
+                                current_app.logger.warning(f"Failed to delete {p}: {e}")
                 db.session.delete(annotation)
                 annotation_deleted = True
 
-        # Удаляем вопрос
         db.session.delete(question)
         db.session.commit()
 
@@ -342,41 +379,34 @@ def delete_question(question_id):
 
     except Exception as e:
         db.session.rollback()
-        #import traceback
-        #traceback.print_exc()
+        current_app.logger.exception("Error in delete_question")
         flash(_('Ошибка при удалении вопроса. Обратитесь к администратору.'))
 
-    # Возврат с сохранением параметров (пагинация, сортировка)
     next_url = request.args.get('next')
-    if next_url and is_safe_url(next_url):  # ← убедитесь, что is_safe_url импортирован
+    if next_url and is_safe_url(next_url):
         return redirect(next_url)
     return redirect(url_for('teacher.view_questions'))
+
 
 @bp.route('/teacher/view_questions')
 @login_required
 def view_questions():
-    """
-    Маршрут для просмотра созданных тестов
-    """
-    # Получаем параметры сортировки из запроса
     sort_by = request.args.get('sort_by', 'date')
     order = request.args.get('order', 'desc')
+    per_page_raw = request.args.get('per_page', '10')
 
     topics = TestTopic.query.all()
-    topic_map = {topic.id: topic.name for topic in topics}  # ← остаётся в памяти как dict
+    topic_map = {t.id: t.name for t in topics}
 
     if current_user.role not in ['admin', 'teacher']:
-        flash('Доступ запрещен')
+        flash(_('Доступ запрещён'))
         return redirect(url_for('main.index'))
 
-    # Параметр количества записей на странице
-    per_page_raw = request.args.get('per_page', '10')
     try:
         per_page = int(per_page_raw) if per_page_raw != 'all' else None
     except (TypeError, ValueError):
         per_page = 10
 
-    # Определяем поля сортировки
     sort_fields = {
         'user': Question.creator_id,
         'topic': TestTopic.name,
@@ -384,26 +414,20 @@ def view_questions():
         'date': Question.created_at
     }
 
-    # Получаем поле для сортировки
     sort_field = sort_fields.get(sort_by, Question.created_at)
     sort_expr = asc(sort_field) if order == 'asc' else desc(sort_field)
 
-    # Преподаватель видит только свои тесты, администратор - все
-    if current_user.role == 'admin':
-        query = Question.query.join(TestTopic, Question.topic_id == TestTopic.id).order_by(sort_expr)
-    else:
-        query = Question.query.filter_by(creator_id=current_user.id).join(TestTopic, Question.topic_id == TestTopic.id).order_by(sort_expr)
+    base_query = Question.query.join(TestTopic, Question.topic_id == TestTopic.id).order_by(sort_expr)
+    if current_user.role != 'admin':
+        base_query = base_query.filter(Question.creator_id == current_user.id)
 
-    # Пагинация или выбор всех
     page = request.args.get('page', 1, type=int)
 
-    # Пагинация
     if per_page is None:
-        # Показываем все записи
-        questions = query.all()
+        questions = base_query.all()
         pagination = None
     else:
-        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        pagination = base_query.paginate(page=page, per_page=per_page, error_out=False)
         questions = pagination.items
 
     return render_template('teacher/view_questions.html',
@@ -412,104 +436,498 @@ def view_questions():
                           pagination=pagination,
                           current_per_page=per_page_raw)
 
+
 @bp.route('/teacher/view_results')
 @login_required
 def view_results():
-    """
-    Маршрут для просмотра результатов тестов
-    """
     if current_user.role not in ['admin', 'teacher']:
-        flash('Доступ запрещен')
+        flash(_('Доступ запрещён'))
         return redirect(url_for('main.index'))
 
-    # Преподаватель видит результаты по своим тестам, администратор - все
     if current_user.role == 'admin':
         results = TestResult.query.all()
     else:
-        # Получаем ID тестов, созданных текущим преподавателем
-        teacher_test_ids = Test.query.filter_by(creator_id=current_user.id).with_entities(Test.id).all()
-        test_ids = [test_id for test_id, in teacher_test_ids] if teacher_test_ids else []
-        results = TestResult.query.filter(TestResult.test_id.in_(test_ids)).all()
+        results = []
 
     return render_template('teacher/view_results.html', results=results)
 
-@bp.route('/teacher/generate_variant', methods=['GET', 'POST'])
-@login_required
-def generate_variant():
-    """
-    Маршрут для генерации варианта задания для студентов
 
-    GET: Отображает форму выбора параметров
-    POST: Генерирует и отображает/сохраняет вариант
-    """
+# ==================== КОНСТРУКТОР ТЕСТОВ ====================
+
+@bp.route('/teacher/test_constructor', methods=['GET', 'POST'])
+@login_required
+def test_constructor():
     if current_user.role not in ['admin', 'teacher']:
-        flash('Доступ запрещен')
+        flash(_('Доступ запрещён'))
         return redirect(url_for('main.index'))
 
+    topics = TestTopic.query.order_by(TestTopic.name).all()
+    topic_choices = [{'id': t.id, 'name': t.name} for t in topics]
+    question_types = [
+        {'value': 'open', 'label': _('Открытый')},
+        {'value': 'graphic', 'label': _('Графический')}
+    ]
+
     if request.method == 'POST':
-        topic_id = request.form.get('topic_id')
-        num_questions = int(request.form.get('num_questions', 10))  # По умолчанию 10 вопросов
-        difficulty = request.form.get('difficulty', 'medium')  # По умолчанию средняя сложность (не реализовано)
+        name = request.form.get('name', '').strip()
+        description = request.form.get('description', '').strip()
+        structure_raw = request.form.get('structure', '[]')
 
-        # Получаем тесты по выбранной теме
-        if topic_id:
-            tests = Test.query.filter_by(topic_id=topic_id).all()
-        else:
-            tests = Test.query.all()
+        if not name:
+            flash(_('Название теста обязательно'))
+            return render_template('teacher/test_constructor.html',
+                                   topics=topics,
+                                   topic_choices=topic_choices,
+                                   question_types=question_types,
+                                   name=name,
+                                   description=description,
+                                   structure_raw=structure_raw)
 
-        # Собираем все вопросы из выбранных тестов
-        all_questions = []
-        for test in tests:
-            all_questions.extend(test.questions)
+        try:
+            structure = json.loads(structure_raw)
+            if not isinstance(structure, list):
+                raise ValueError
+            for item in structure:
+                if not isinstance(item, dict):
+                    raise ValueError
+                if 'topic_id' not in item or 'question_type' not in item:
+                    raise ValueError
+                if item['topic_id'] not in [t.id for t in topics]:
+                    raise ValueError
+                if item['question_type'] not in ['open', 'graphic']:
+                    raise ValueError
+        except (ValueError, TypeError, json.JSONDecodeError):
+            flash(_('Некорректная структура теста'))
+            return render_template('teacher/test_constructor.html',
+                                   topics=topics,
+                                   topic_choices=topic_choices,
+                                   question_types=question_types,
+                                   name=name,
+                                   description=description,
+                                   structure_raw=structure_raw)
 
-        # Выбираем случайные вопросы
-        import random
-        selected_questions = random.sample(all_questions, min(len(all_questions), num_questions))
+        new_test = Test(
+            name=name,
+            description=description,
+            structure=json.dumps(structure, ensure_ascii=False),
+            creator_id=current_user.id
+        )
 
-        # В реальном приложении, здесь можно было бы создать новый "тест-вариант" и сохранить его
-        # или сгенерировать PDF/HTML файл с заданием
-        # Для демонстрации, просто отобразим выбранные вопросы
-        return render_template('teacher/generated_variant.html', questions=selected_questions)
+        try:
+            db.session.add(new_test)
+            db.session.commit()
+            flash(_('Тест успешно создан'))
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.exception("Ошибка создания теста")
+            flash(_('Ошибка при создании теста. Обратитесь к администратору.'))
+        return redirect(url_for('teacher.test_constructor'))
+
+    # GET: пагинация списка тестов
+    base_query = Test.query
+    if current_user.role != 'admin':
+        base_query = base_query.filter(Test.creator_id == current_user.id)
+    base_query = base_query.order_by(Test.created_at.desc())
+
+    per_page_raw = request.args.get('per_page', '10')
+    try:
+        per_page = int(per_page_raw) if per_page_raw != 'all' else None
+    except (TypeError, ValueError):
+        per_page = 10
+
+    page = request.args.get('page', 1, type=int)
+
+    if per_page is None:
+        tests = base_query.all()
+        pagination = None
+    else:
+        pagination = base_query.paginate(page=page, per_page=per_page, error_out=False)
+        tests = pagination.items
+
+    topic_map = {t.id: t.name for t in topics}
+
+    return render_template('teacher/test_constructor.html',
+                           tests=tests,
+                           pagination=pagination,
+                           topic_map=topic_map,
+                           topics=topics,
+                           topic_choices=topic_choices,
+                           question_types=question_types,
+                           name='',
+                           description='',
+                           structure_raw='[]')
+
+
+@bp.route('/teacher/test_constructor/delete/<int:test_id>', methods=['POST'])
+@login_required
+def delete_test(test_id):
+    if current_user.role not in ['admin', 'teacher']:
+        flash(_('Доступ запрещён'))
+        return redirect(url_for('teacher.test_constructor'))
+
+    test = Test.query.get_or_404(test_id)
+
+    if test.creator_id != current_user.id and current_user.role != 'admin':
+        flash(_('Доступ запрещён'))
+        return redirect(url_for('teacher.test_constructor'))
+
+    try:
+        db.session.delete(test)
+        db.session.commit()
+        flash(_('Тест и все его варианты успешно удалены'))
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception("Ошибка удаления теста")
+        flash(_('Ошибка при удалении теста'))
+
+    next_url = request.args.get('next')
+    if next_url and is_safe_url(next_url):
+        return redirect(next_url)
+    return redirect(url_for('teacher.test_constructor'))
+
+
+@bp.route('/teacher/test_constructor/view/<int:test_id>')
+@login_required
+def view_test(test_id):
+    if current_user.role not in ['admin', 'teacher']:
+        flash(_('Доступ запрещён'))
+        return redirect(url_for('teacher.test_constructor'))
+
+    test = Test.query.get_or_404(test_id)
+
+    if test.creator_id != current_user.id and current_user.role != 'admin':
+        flash(_('Доступ запрещён'))
+        return redirect(url_for('teacher.test_constructor'))
 
     topics = TestTopic.query.all()
-    return render_template('teacher/generate_variant.html', topics=topics)
+    topic_map = {t.id: t.name for t in topics}
+
+    try:
+        structure = json.loads(test.structure) if test.structure else []
+    except (ValueError, TypeError):
+        structure = []
+
+    questions_by_item = []
+    for idx, item in enumerate(structure):
+        topic_id = item.get('topic_id')
+        q_type = item.get('question_type')
+        examples = Question.query.filter_by(
+            topic_id=topic_id,
+            question_type=q_type
+        ).limit(3).all()
+        questions_by_item.append({
+            'index': idx + 1,
+            'topic_id': topic_id,
+            'topic_name': topic_map.get(topic_id, '?'),
+            'question_type': q_type,
+            'type_label': _('Открытый') if q_type == 'open' else _('Графический'),
+            'examples': examples
+        })
+
+    stats_rows = db.session.query(
+        Question.topic_id,
+        Question.question_type,
+        func.count(Question.id).label('count')
+    ).filter(Question.topic_id.isnot(None))
+
+    if current_user.role != 'admin':
+        stats_rows = stats_rows.filter(Question.creator_id == current_user.id)
+
+    stats_rows = stats_rows.group_by(Question.topic_id, Question.question_type).all()
+
+    stats = {}
+    for tid, qtype, cnt in stats_rows:
+        stats[f"{tid},{qtype}"] = cnt
+
+    all_topics = [t.id for t in topics]
+    all_types = ['open', 'graphic']
+    for tid in all_topics:
+        for qtype in all_types:
+            key = f"{tid},{qtype}"
+            if key not in stats:
+                stats[key] = 0
+
+    total_open = sum(cnt for key, cnt in stats.items() if key.endswith(',open'))
+    total_graphic = sum(cnt for key, cnt in stats.items() if key.endswith(',graphic'))
+
+    return render_template('teacher/view_test.html',
+                           test=test,
+                           structure=structure,
+                           questions_by_item=questions_by_item,
+                           stats=stats,
+                           total_open=total_open,
+                           total_graphic=total_graphic,
+                           total_questions=total_open + total_graphic,
+                           topic_map=topic_map)
 
 
-def allowed_file(filename, extensions_set):
-    """
-    Проверка разрешенного расширения файла
+@bp.route('/teacher/test_constructor/stats')
+@login_required
+def stats_api():
+    if current_user.role not in ['admin', 'teacher']:
+        return jsonify({'error': 'forbidden'}), 403
 
-    Args:
-        filename (str): Имя файла
-        extensions_set (set): Множество разрешенных расширений
+    stats_rows = db.session.query(
+        Question.topic_id,
+        Question.question_type,
+        func.count(Question.id).label('count')
+    ).filter(Question.topic_id.isnot(None))
 
-    Returns:
-        bool: True если расширение разрешено, иначе False
-    """
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in extensions_set
+    if current_user.role != 'admin':
+        stats_rows = stats_rows.filter(Question.creator_id == current_user.id)
 
-def is_safe_url(target):
-    """
-    Проверяет, что target — безопасный локальный URL.
-    Поддерживает относительные пути ('/admin') и абсолютные локальные URLы
-    ('http://127.0.0.1:5000/admin').
-    """
-    if not target:
-        return False
+    stats_rows = stats_rows.group_by(Question.topic_id, Question.question_type).all()
 
-    # Приводим target к абсолютному URL относительно host_url
-    # Это нормализует как '/path', так и 'http://host/path'
-    host_url = request.host_url.rstrip('/')  # 'http://127.0.0.1:5000'
-    target_url = urljoin(host_url + '/', target).rstrip('/')
-    # → 'http://127.0.0.1:5000/admin/teachers'
+    stats = {}
+    for tid, qtype, cnt in stats_rows:
+        stats[f"{tid},{qtype}"] = cnt
 
-    ref = urlparse(host_url)
-    test = urlparse(target_url)
+    all_topics = [t.id for t in TestTopic.query.all()]
+    all_types = ['open', 'graphic']
+    for tid in all_topics:
+        for qtype in all_types:
+            key = f"{tid},{qtype}"
+            stats[key] = stats.get(key, 0)
 
-    # Проверяем: тот же протокол (http/https) и тот же хост:порт
-    return (
-        test.scheme in ('http', 'https') and
-        ref.netloc == test.netloc and
-        test.path.startswith('/')  # защита от 'javascript:'
+    return jsonify(stats)
+
+
+@bp.route('/teacher/test_constructor/generate/<int:test_id>', methods=['POST'])
+@login_required
+def generate_variant(test_id):
+    if current_user.role not in ['admin', 'teacher']:
+        flash(_('Доступ запрещён'))
+        return redirect(url_for('teacher.test_constructor'))
+
+    test = Test.query.get_or_404(test_id)
+
+    if test.creator_id != current_user.id and current_user.role != 'admin':
+        flash(_('Доступ запрещён'))
+        return redirect(url_for('teacher.view_test', test_id=test.id))
+
+    new_variants, errors = generate_variants_batch_impl(
+        test, 1,
+        user_role=current_user.role,
+        user_id=current_user.id
     )
+
+    if errors:
+        for err in errors:
+            flash(err)
+        return redirect(url_for('teacher.view_test', test_id=test.id))
+
+    try:
+        db.session.add(new_variants[0])
+        db.session.commit()
+        flash(_('Вариант успешно сгенерирован'))
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception("Ошибка генерации варианта")
+        flash(_('Ошибка при создании варианта'))
+
+    next_url = request.args.get('next')
+    if next_url and is_safe_url(next_url):
+        return redirect(next_url)
+    return redirect(url_for('teacher.view_test', test_id=test.id))
+
+
+@bp.route('/teacher/test_constructor/edit/<int:test_id>', methods=['GET', 'POST'])
+@login_required
+def edit_test(test_id):
+    if current_user.role not in ['admin', 'teacher']:
+        flash(_('Доступ запрещён'))
+        return redirect(url_for('teacher.test_constructor'))
+
+    test = Test.query.get_or_404(test_id)
+
+    if test.creator_id != current_user.id and current_user.role != 'admin':
+        flash(_('Доступ запрещён'))
+        return redirect(url_for('teacher.test_constructor'))
+
+    topics = TestTopic.query.order_by(TestTopic.name).all()
+    topic_choices = [{'id': t.id, 'name': t.name} for t in topics]
+    question_types = [
+        {'value': 'open', 'label': _('Открытый')},
+        {'value': 'graphic', 'label': _('Графический')}
+    ]
+
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        description = request.form.get('description', '').strip()
+        structure_raw = request.form.get('structure', '[]')
+
+        if not name:
+            flash(_('Название теста обязательно'))
+            return render_template('teacher/edit_test.html',
+                                   test=test,
+                                   topics=topics,
+                                   topic_choices=topic_choices,
+                                   question_types=question_types,
+                                   name=name,
+                                   description=description,
+                                   structure_raw=structure_raw)
+
+        try:
+            structure = json.loads(structure_raw)
+            if not isinstance(structure, list):
+                raise ValueError
+            for item in structure:
+                if not isinstance(item, dict) or \
+                   'topic_id' not in item or 'question_type' not in item:
+                    raise ValueError
+                if item['topic_id'] not in [t.id for t in topics]:
+                    raise ValueError
+                if item['question_type'] not in ['open', 'graphic']:
+                    raise ValueError
+        except (ValueError, TypeError, json.JSONDecodeError):
+            flash(_('Некорректная структура теста'))
+            return render_template('teacher/edit_test.html',
+                                   test=test,
+                                   topics=topics,
+                                   topic_choices=topic_choices,
+                                   question_types=question_types,
+                                   name=name,
+                                   description=description,
+                                   structure_raw=structure_raw)
+
+        test.name = name
+        test.description = description
+        test.structure = json.dumps(structure, ensure_ascii=False)
+
+        try:
+            db.session.commit()
+            flash(_('Тест успешно обновлён'))
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.exception("Ошибка обновления теста")
+            flash(_('Ошибка при сохранении теста'))
+        next_url = request.args.get('next')
+        if next_url and is_safe_url(next_url):
+            return redirect(next_url)
+        return redirect(url_for('teacher.view_test', test_id=test.id))
+
+    try:
+        structure = json.loads(test.structure) if test.structure else []
+    except:
+        structure = []
+
+    return render_template('teacher/edit_test.html',
+                           test=test,
+                           topics=topics,
+                           topic_choices=topic_choices,
+                           question_types=question_types,
+                           name=test.name,
+                           description=test.description,
+                           structure_raw=json.dumps(structure, ensure_ascii=False))
+
+
+@bp.route('/teacher/test_constructor/variant/<int:variant_id>')
+@login_required
+def view_variant(variant_id):
+    if current_user.role not in ['admin', 'teacher']:
+        flash(_('Доступ запрещён'))
+        return redirect(url_for('teacher.test_constructor'))
+
+    variant = Variant.query.get_or_404(variant_id)
+    test = variant.test
+
+    topics = TestTopic.query.all()
+    topic_map = {t.id: t.name for t in topics}
+
+    if test.creator_id != current_user.id and current_user.role != 'admin':
+        flash(_('Доступ запрещён'))
+        return redirect(url_for('teacher.view_test', test_id=test.id))
+
+    try:
+        question_ids = json.loads(variant.question_id_list) if variant.question_id_list else []
+    except:
+        question_ids = []
+
+    questions = []
+    for qid in question_ids:
+        q = Question.query.get(qid)
+        if q:
+            questions.append(q)
+
+    return render_template('teacher/view_variant.html',
+                           variant=variant,
+                           test=test,
+                           questions=questions,
+                           topic_map=topic_map)
+
+
+@bp.route('/teacher/test_constructor/batch/<int:test_id>', methods=['POST'])
+@login_required
+def generate_variants_batch(test_id):
+    if current_user.role not in ['admin', 'teacher']:
+        flash(_('Доступ запрещён'))
+        return redirect(url_for('teacher.test_constructor'))
+
+    test = Test.query.get_or_404(test_id)
+
+    if test.creator_id != current_user.id and current_user.role != 'admin':
+        flash(_('Доступ запрещён'))
+        return redirect(url_for('teacher.view_test', test_id=test.id))
+
+    try:
+        count = int(request.form.get('count', 1))
+    except (TypeError, ValueError):
+        flash(_('Некорректное количество'))
+        return redirect(url_for('teacher.view_test', test_id=test.id))
+
+    new_variants, errors = generate_variants_batch_impl(
+        test, count,
+        user_role=current_user.role,
+        user_id=current_user.id
+    )
+
+    if errors:
+        for err in errors[:3]:
+            flash(err)
+        if len(errors) > 3:
+            flash(_('... и ещё %(n)d ошибок', n=len(errors) - 3))
+    else:
+        try:
+            db.session.add_all(new_variants)
+            db.session.commit()
+            flash(_('Успешно создано %(count)d вариантов', count=len(new_variants)))
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.exception("Ошибка пакетной генерации")
+            flash(_('Ошибка при сохранении вариантов'))
+
+    next_url = request.args.get('next')
+    if next_url and is_safe_url(next_url):
+        return redirect(next_url)
+    return redirect(url_for('teacher.view_test', test_id=test.id))
+
+
+# ==================== УДАЛЕНИЕ ВАРИАНТА ====================
+@bp.route('/teacher/test_constructor/variant/delete/<int:variant_id>', methods=['POST'])
+@login_required
+def delete_variant(variant_id):
+    if current_user.role not in ['admin', 'teacher']:
+        flash(_('Доступ запрещён'))
+        return redirect(url_for('teacher.test_constructor'))
+
+    variant = Variant.query.get_or_404(variant_id)
+    test = variant.test
+
+    if test.creator_id != current_user.id and current_user.role != 'admin':
+        flash(_('Доступ запрещён'))
+        return redirect(url_for('teacher.view_test', test_id=test.id))
+
+    # Защита: подтверждение по ID варианта (опционально — можно добавить modal как для теста)
+    try:
+        db.session.delete(variant)
+        db.session.commit()
+        flash(_('Вариант успешно удалён'))
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception("Ошибка удаления варианта")
+        flash(_('Ошибка при удалении варианта'))
+
+    next_url = request.args.get('next')
+    if next_url and is_safe_url(next_url):
+        return redirect(next_url)
+    return redirect(url_for('teacher.view_test', test_id=test.id))

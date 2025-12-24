@@ -28,6 +28,15 @@
     <div class="col-md-3 mb-3">
         <div class="card text-center">
             <div class="card-body">
+                <h5 class="card-title">{{ _('Темы тестов') }}</h5>
+                <h3 class="text-muted">{{ topics_count }}</h3>
+                <a href="{{ url_for('database.topics') }}" class="btn btn-secondary">{{ _('Просмотр') }}</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-center">
+            <div class="card-body">
                 <h5 class="card-title">{{ _('Аннотации') }}</h5>
                 <h3 class="text-warning">{{ annotations_count }}</h3>
                 <a href="{{ url_for('database.annotations') }}" class="btn btn-warning">{{ _('Просмотр') }}</a>

@@ -38,7 +38,7 @@
         {% if question.has_image_annotation %}
             <div class="mb-3">
                 <label class="form-label">Текущее изображение:</label>
-                <img src="{{ url_for('static', filename='uploads/images/' + question.image_annotation.filename) }}" alt="Текущее изображение" style="max-width: 100%; height: auto;">
+                <img src="{{ url_for('static', filename='uploads/images/' + question.image_annotation.image_file) }}" alt="Текущее изображение" style="max-width: 100%; height: auto;">
             </div>
             <div class="mb-3">
                 <label class="form-label">Текущая аннотация:</label>
@@ -56,7 +56,7 @@
     </div>
 
     <div class="d-grid gap-2">
-        <button type="submit" class="btn btn-primary btn-lg">Сохранить изменения</button>
+        <button type="submit" class="btn btn-primary">Сохранить изменения</button>
         <a href="{{ url_for('database.questions') }}" class="btn btn-secondary">Отмена</a>
     </div>
 </form>

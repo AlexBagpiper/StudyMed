@@ -1,0 +1,36 @@
+<!-- app/templates/database/edit_topic.html -->
+{% extends "base.html" %}
+
+{% block title %}{{ _('Редактировать тему') }} - {{ get_app_name() }}{% endblock %}
+
+{% block content %}
+<h2 class="text-center mb-4">{{ _('Редактировать тему') }}</h2>
+
+<form method="POST" action="{{ url_for('database.edit_record', table='topics', id=topic.id) }}">
+    <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
+
+    <div class="mb-3">
+        <label for="name" class="form-label">
+            {{ _('Название темы') }}<span class="text-danger">*</span>
+        </label>
+        <input type="text" class="form-control" id="name" name="name"
+               value="{{ topic.name }}" required maxlength="200">
+    </div>
+
+    <div class="mb-3">
+        <label for="description" class="form-label">{{ _('Описание') }}</label>
+        <textarea class="form-control" id="description" name="description"
+                  rows="4" maxlength="1000">{{ topic.description or '' }}</textarea>
+        <div class="form-text text-end">
+            {{ topic.description|length or 0 }} / 1000
+        </div>
+    </div>
+
+    <div class="d-grid gap-2">
+        <button type="submit" class="btn btn-primary">{{ _('Сохранить') }}</button>
+        <a href="{{ request.args.get('next') or url_for('admin.topics') }}"
+           class="btn btn-secondary">{{ _('Отмена') }}</a>
+    </div>
+</form>
+
+{% endblock %}

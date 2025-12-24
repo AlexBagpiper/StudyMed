@@ -6,9 +6,12 @@
 from flask import Flask, session # Импортируем session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
-from flask_babel import Babel # Импортируем Babel
+from flask_babel import _, Babel # Импортируем Babel
 from config import Config
+from werkzeug.security import generate_password_hash
+import os
 import json
+
 
 # Инициализация расширений Flask (до create_app)
 db = SQLAlchemy()
@@ -28,38 +31,56 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
-    # Поддерживаемые языки (берем из конфига)
-    SUPPORTED_LANGUAGES = list(app.config['LANGUAGES'].keys())
+     # Поддерживаемые языки (берём из конфига)
+    SUPPORTED_LANGUAGES = list(app.config.get('LANGUAGES', {}).keys())
 
-    # Инициализация расширений с приложением
+    # Инициализация расширений
     db.init_app(app)
+    # === Включение внешних ключей для SQLite ===
+    if 'sqlite' in app.config.get('SQLALCHEMY_DATABASE_URI'):
+        from sqlalchemy import event
+        from sqlalchemy.engine import Engine
+
+        @event.listens_for(Engine, "connect")
+        def set_sqlite_pragma(dbapi_connection, connection_record):
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+
     login_manager.init_app(app)
-    # ВАЖНО: инициализируем babel с приложением ПЕРЕД определением get_locale
-
-    # Настройка LoginManager
     login_manager.login_view = 'auth.login'
-    login_manager.login_message = 'Пожалуйста, войдите для доступа к этой странице.'
+    login_manager.login_message = _('Пожалуйста, войдите для доступа к этой странице.')
 
-    # --- ОПРЕДЕЛЕНИЕ ФУНКЦИИ get_locale ПОСЛЕ babel.init_app ---
-    # Определяем функцию get_locale ВНУТРИ create_app ПОСЛЕ babel.init_app
+    # === Babel: get_locale ДО инициализации ===
     def get_locale():
-        # Попробовать получить язык из сессии
-        user_language = session.get('language')
-        # Если в сессии нет языка, использовать язык по умолчанию
-        if user_language in SUPPORTED_LANGUAGES:
-            return user_language
-        return app.config['BABEL_DEFAULT_LOCALE']
+        # 1. Сессия
+        lang = session.get('language')
+        if lang in app.config.get('LANGUAGES', {}):
+            return lang
 
-    # Определяем функцию get_app_name для подстановки имени приложения
-    def get_app_name():
-        return app.config['APP_NAME']
-    # Регистрируем функцию в globals
-    app.jinja_env.globals['get_app_name'] = get_app_name
+        # 2. Текущий пользователь (если есть и авторизован)
+        try:
+            from flask_login import current_user
+            if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
+                if current_user.language in app.config.get('LANGUAGES', {}):
+                    return current_user.language
+        except RuntimeError:
+            # Вне контекста запроса (например, при CLI-инициализации)
+            pass
+
+        # 3. Дефолт
+        return app.config.get('BABEL_DEFAULT_LOCALE', 'ru')
 
     babel = Babel(app, locale_selector=get_locale)
     app.jinja_env.globals['get_locale'] = get_locale
 
-    # Регистрация blueprints (модулей)
+    # Функция для имени приложения
+    def get_app_name():
+        return app.config.get('APP_NAME', 'Приложение')
+
+    app.jinja_env.globals['get_app_name'] = get_app_name
+
+    # === Регистрация Blueprints ===
     from app.routes.auth import bp as auth_bp
     app.register_blueprint(auth_bp, url_prefix='/auth')
 
@@ -78,65 +99,64 @@ def create_app(config_class=Config):
     from app.routes.database import bp as database_bp
     app.register_blueprint(database_bp, url_prefix='/database')
 
-    # Добавление фильтра для Jinja2 для преобразования JSON в Python объект
+    # === Jinja2 фильтры ===
     @app.template_filter('from_json')
     def from_json_filter(value):
-        """
-        Фильтр Jinja2 для преобразования JSON строки в Python объект
-
-        Args:
-            value (str): JSON строка
-
-        Returns:
-            object: Python объект из JSON
-        """
         try:
-            return json.loads(value)
-        except:
+            return json.loads(value) if value else []
+        except (TypeError, ValueError):
             return []
 
-    # Создание папки для загрузки файлов если не существует
-    import os
-    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    os.makedirs(app.config['IMAGES_UPLOAD_FOLDER'], exist_ok=True)  # Новый каталог
-    os.makedirs(app.config['ANNOTATIONS_UPLOAD_FOLDER'], exist_ok=True) # Новый каталог
+    # === Создание папок загрузки ===
+    upload_folder = app.config['UPLOAD_FOLDER']
+    os.makedirs(upload_folder, exist_ok=True)
+    os.makedirs(os.path.join(upload_folder, 'images'), exist_ok=True)
+    os.makedirs(os.path.join(upload_folder, 'annotations'), exist_ok=True)
 
-    # Создание базы данных и добавление начальных данных (без администратора)
+    # === Инициализация БД ===
     with app.app_context():
-        # Импорт моделей для создания таблиц
+        # Импорт моделей (чтобы SQLAlchemy их увидел)
         from app.models.user import User
-        from app.models.test import Test, TestTopic
+        from app.models.test_topics import TestTopic
         from app.models.question import Question
         from app.models.annotation import ImageAnnotation, TestResult
+        from app.models.test_variant import Test, Variant
 
-        # Создание всех таблиц
         db.create_all()
 
-        # Создание администратора по умолчанию из файла admin_credentials.py
-        from admin_credentials import ADMIN_CREDENTIALS
-        admin_user = User.query.filter_by(username=ADMIN_CREDENTIALS['username']).first() # Меняем на email
-        if not admin_user:
+        # === Создание администратора по умолчанию ===
+        # Используем хэшированный пароль 'admin'
+        admin_username = 'admin'
+        admin_password = 'admin'  # ← plaintext, но хэшируем!
+        admin_email = admin_username  # для совместимости (логин = email)
+
+        existing_admin = User.query.filter_by(username=admin_email).first()
+        if not existing_admin:
             admin_user = User(
-                username=ADMIN_CREDENTIALS['username'], # Меняем на email
-                password_hash=ADMIN_CREDENTIALS['password'],
-                role='admin'
+                username=admin_email,
+                role='admin',
+                first_name='Администратор',
+                last_name='Системы'
             )
+            # ✅ Хэшируем пароль!
+            admin_user.set_password(admin_password)
             db.session.add(admin_user)
-            db.session.commit()
+            try:
+                db.session.commit()
+                app.logger.info(f"Создан администратор: {admin_email} (пароль: '{admin_password}')")
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Ошибка создания администратора: {e}")
 
     return app
 
 # Функция загрузки пользователя для Flask-Login
 @login_manager.user_loader
 def load_user(user_id):
-    """
-    Загрузка пользователя по ID для Flask-Login
-
-    Args:
-        user_id: ID пользователя
-
-    Returns:
-        User: Объект пользователя или None если не найден
-    """
     from app.models.user import User
-    return User.query.get(int(user_id))
+    if user_id is None:
+        return None
+    try:
+        return User.query.get(int(user_id))
+    except (ValueError, TypeError):
+        return None

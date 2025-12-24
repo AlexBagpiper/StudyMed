@@ -14,10 +14,9 @@ class ImageAnnotation(db.Model):
 
     Attributes:
         id (int): Уникальный идентификатор аннотации
-        filename (str): Имя файла изображения
+        image_file (str): Имя файла изображения
         annotation_file (str): Имя файла аннотации (JSON или TXT)
         format_type (str): Тип формата ('coco', 'yolo')
-        labels (str): JSON строка с метками
         created_at (datetime): Дата создания аннотации
         questions (relationship): Связь с вопросами, использующими эту аннотацию
     """
@@ -26,10 +25,9 @@ class ImageAnnotation(db.Model):
 
     # Основные поля
     id = db.Column(Integer, primary_key=True)
-    filename = db.Column(String(200), nullable=False)
+    image_file = db.Column(String(200), nullable=False)
     annotation_file = db.Column(String(200))  # Путь к файлу аннотации (COCO/JSON или YOLO/TXT)
     format_type = db.Column(String(10), default='coco')  # 'coco' или 'yolo'
-    labels = db.Column(Text)  # JSON строка содержащая метки
     created_at = db.Column(DateTime, default=datetime.utcnow)
 
     # НОВОЕ: Связь с вопросами

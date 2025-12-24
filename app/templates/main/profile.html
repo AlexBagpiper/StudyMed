@@ -1,4 +1,4 @@
-<!-- app/templates/auth/profile.html -->
+<!-- app/templates/main/profile.html -->
 {% extends "base.html" %}
 
 {% block title %}{{ _('Профиль') }} - {{ get_app_name() }}{% endblock %}
@@ -8,18 +8,18 @@
     <div class="col-md-8">
         <div class="card">
             <div class="card-header">
-                <h3 class="mb-0">{{ _('Редактирование профиля') }}</h3> <!-- Обновлено -->
+                <h3 class="mb-0">{{ _('Редактирование профиля') }}</h3>
             </div>
             <div class="card-body">
                 <form method="POST" action="{{ url_for('main.profile') }}">
                     <div class="row">
                         <div class="col-md-4 mb-3">
                             <label for="last_name" class="form-label">{{ _('Фамилия') }}</label>
-                            <input type="text" class="form-control" id="last_name" name="last_name" value="{{ user.last_name or '' }}">
+                            <input type="text" class="form-control" id="last_name" name="last_name" value="{{ user.last_name or '' }}" required>
                         </div>
                         <div class="col-md-4 mb-3">
                             <label for="first_name" class="form-label">{{ _('Имя') }}</label>
-                            <input type="text" class="form-control" id="first_name" name="first_name" value="{{ user.first_name or '' }}">
+                            <input type="text" class="form-control" id="first_name" name="first_name" value="{{ user.first_name or '' }}" required>
                         </div>
                         <div class="col-md-4 mb-3">
                             <label for="middle_name" class="form-label">{{ _('Отчество') }}</label>
@@ -31,36 +31,123 @@
                         <input type="text" class="form-control" id="group_number" name="group_number" value="{{ user.group_number or '' }}">
                     </div>
                     <div class="mb-3">
-                        <label for="username" class="form-label">{{ _('Имя пользователя') }}</label>
-                        <input type="text" class="form-control" id="username" name="username" value="{{ user.username }}" readonly disabled>
-                        <small class="form-text text-muted">{{ _('Имя пользователя нельзя изменить') }}</small>
+                        <label for="username" class="form-label">{{ _('Имя пользователя') }} (email)</label>
+                        <input type="email" class="form-control" id="username" name="username" value="{{ user.username }}" readonly disabled>
                     </div>
+
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="language" class="form-label">{{ _('Язык интерфейса') }}</label>
                             <select class="form-select" id="language" name="language">
                                 {% for code, name in config.LANGUAGES.items() %}
-                                    <option value="{{ code }}" {{ 'selected' if code == user.language }}>{{ name }}</option>
+                                    <option value="{{ code }}" {{ 'selected' if code == user.language else '' }}>{{ name }}</option>
                                 {% endfor %}
                             </select>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="theme" class="form-label">{{ _('Тема оформления') }}</label>
                             <select class="form-select" id="theme" name="theme">
-                                <option value="default" {{ 'selected' if user.theme == 'default' }}>{{ _('Стандартная') }}</option>
-                                <option value="blue" {{ 'selected' if user.theme == 'blue' }}>{{ _('Синяя') }}</option>
-                                <option value="custom" {{ 'selected' if user.theme == 'custom' }}>{{ _('Пользовательская') }}</option>
-                                <!-- Добавьте другие темы по мере их добавления -->
+                                <option value="default" {{ 'selected' if user.theme == 'default' else '' }}>{{ _('Стандартная') }}</option>
+                                <option value="blue" {{ 'selected' if user.theme == 'blue' else '' }}>{{ _('Синяя') }}</option>
+                                <!-- Добавьте другие темы при наличии -->
                             </select>
                         </div>
                     </div>
+
+                    <!-- === Смена пароля === -->
+                    <div class="mb-3">
+                        <label for="current_password" class="form-label">{{ _('Текущий пароль') }}</label>
+                        <div class="position-relative">
+                            <input type="password"
+                                   class="form-control pe-5"
+                                   id="current_password"
+                                   name="current_password"
+                                   autocomplete="current-password">
+                            <button type="button"
+                                    id="toggleCurrentPassword"
+                                    class="btn position-absolute top-50 end-0 translate-middle-y p-0"
+                                    style="z-index: 2; background: none; border: none; width: 2.25rem; height: 2.25rem;"
+                                    onclick="togglePassword('current_password')"
+                                    aria-label="{{ _('Показать пароль') }}">
+                                <i class="fa fa-eye text-muted" id="iconCurrentPassword"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Новый пароль -->
+                    <div class="mb-3">
+                        <label for="new_password" class="form-label">{{ _('Новый пароль') }}</label>
+                        <div class="position-relative">
+                            <input type="password"
+                                   class="form-control pe-5"
+                                   id="new_password"
+                                   name="new_password"
+                                   minlength="1"
+                                   autocomplete="new-password">
+                            <button type="button"
+                                    id="toggleNewPassword"
+                                    class="btn position-absolute top-50 end-0 translate-middle-y p-0"
+                                    style="z-index: 2; background: none; border: none; width: 2.25rem; height: 2.25rem;"
+                                    onclick="toggleNewPassword('new_password')"
+                                    aria-label="{{ _('Показать пароль') }}">
+                                <i class="fa fa-eye text-muted" id="iconNewPassword"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Подтверждение -->
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label">{{ _('Подтверждение нового пароля') }}</label>
+                        <div class="position-relative">
+                            <input type="password"
+                                   class="form-control pe-5"
+                                   id="confirm_password"
+                                   name="confirm_password"
+                                   minlength="1"
+                                   autocomplete="new-password">
+                            <button type="button"
+                                    id="toggleConfirmPassword"
+                                    class="btn position-absolute top-50 end-0 translate-middle-y p-0"
+                                    style="z-index: 2; background: none; border: none; width: 2.25rem; height: 2.25rem;"
+                                    onclick="toggleConfirmPassword('confirm_password')"
+                                    aria-label="{{ _('Показать пароль') }}">
+                                <i class="fa fa-eye text-muted" id="iconConfirmPassword"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <!-- === Конец смены пароля === -->
+
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary">{{ _('Сохранить изменения') }}</button>
-                        <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">{{ _('Отмена') }}</a>
+                        <a href="{{ url_for('main.index') }}" class="btn btn-secondary">{{ _('Отмена') }}</a>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 </div>
+
+<!-- JavaScript для переключения типа ввода -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Функция для переключения видимости пароля
+    function setupPasswordToggle(inputId, buttonId, iconId) {
+        const input = document.getElementById(inputId);
+        const button = document.getElementById(buttonId);
+        const icon = document.getElementById(iconId);
+
+        if (!input || !button || !icon) return;
+
+        button.addEventListener('click', function() {
+            const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
+            input.setAttribute('type', type);
+            // Меняем иконку: глаз (видно) ↔ глаз с перечёркиванием (скрыто)
+            icon.className = type === 'password' ? 'fa fa-eye text-muted' : 'fa fa-eye-slash text-muted';
+        });
+    }
+
+    // Настраиваем все поля
+    setupPasswordToggle('current_password', 'toggleCurrentPassword', 'iconCurrentPassword');
+    setupPasswordToggle('new_password', 'toggleNewPassword', 'iconNewPassword');
+    setupPasswordToggle('confirm_password', 'toggleConfirmPassword', 'iconConfirmPassword');
+});
+</script>
 {% endblock %}
