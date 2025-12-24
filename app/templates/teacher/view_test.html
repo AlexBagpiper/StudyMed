@@ -1,0 +1,234 @@
+<!-- templates/teacher/view_test.html -->
+{% extends "base.html" %}
+
+{% block title %}{{ _('Просмотр теста') }}: {{ test.name }} - {{ get_app_name() }}{% endblock %}
+
+{% block content %}
+{% set next_url = (request.url or '')|urlencode %}
+
+<h2 class="text-center mb-4">{{ _('Просмотр теста') }}: <span class="text-primary">{{ test.name }}</span></h2>
+
+<div class="row">
+  <!-- Информация о тесте -->
+  <div class="col-12 mb-4">
+    <div class="card">
+      <div class="card-header bg-light">
+        <h5 class="mb-0">{{ _('Информация о тесте') }}</h5>
+      </div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-3 col-md-2">{{ _('Название') }}:</dt>
+          <dd class="col-sm-9 col-md-10">{{ test.name }}</dd>
+
+          <dt class="col-sm-3 col-md-2">{{ _('Описание') }}:</dt>
+          <dd class="col-sm-9 col-md-10">{{ test.description or '—' }}</dd>
+
+          <dt class="col-sm-3 col-md-2">{{ _('Создатель') }}:</dt>
+          <dd class="col-sm-9 col-md-10">{{ test.creator.get_formatted_name() }}</dd>
+
+          <dt class="col-sm-3 col-md-2">{{ _('Дата создания') }}:</dt>
+          <dd class="col-sm-9 col-md-10">
+            {{ test.created_at.strftime('%Y-%m-%d %H:%M') if test.created_at else '—' }}
+          </dd>
+
+          <dt class="col-sm-3 col-md-2">{{ _('Вариантов') }}:</dt>
+          <dd class="col-sm-9 col-md-10">{{ test.variants|length }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <!-- Структура теста -->
+  <div class="col-12 mb-4">
+    <div class="card">
+      <div class="card-header bg-light">
+        <h5 class="mb-0">{{ _('Структура теста') }} ({{ structure|length }} {{ _('вопрос(ов)') }})</h5>
+      </div>
+      <div class="card-body">
+        {% if questions_by_item %}
+          <div class="list-group">
+            {% for item in questions_by_item %}
+              <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div class="flex-grow-1">
+                    <h6 class="mb-1">
+                      {{ item.index }}.
+                      <span class="badge bg-info text-dark">{{ item.topic_name }}</span>
+                      <span class="badge bg-secondary">{{ item.type_label }}</span>
+                    </h6>
+                    {% if item.examples %}
+                      <div class="mt-2">
+                        <small class="text-muted">{{ _('Примеры вопросов') }}:</small>
+                        <ul class="list-unstyled mt-1">
+                          {% for q in item.examples %}
+                            <li class="small">
+                              <strong>{{ loop.index }}.</strong>
+                              {{ q.question_text|truncate(100) }}
+                              {% if q.question_type == 'graphic' and q.has_image_annotation %}
+                                <i class="bi bi-image ms-1 text-primary" title="{{ _('Графический вопрос') }}"></i>
+                              {% endif %}
+                            </li>
+                          {% endfor %}
+                        </ul>
+                        {% if item.examples|length == 3 %}
+                          <small class="text-muted">{{ _('(показано до 3 примеров)') }}</small>
+                        {% endif %}
+                      </div>
+                    {% else %}
+                      <div class="alert alert-warning p-2 mt-2">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        {{ _('Нет доступных вопросов по этой теме и типу.') }}
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-muted">{{ _('Структура пуста.') }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Действия и варианты -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header bg-light">
+        <h5 class="mb-0">{{ _('Действия') }}</h5>
+      </div>
+      <div class="card-body">
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <!-- Кнопка генерации с понятным title -->
+          <div class="input-group" style="max-width: 280px;" title="{{ _('Создать один или несколько вариантов теста с разными вопросами') }}">
+            <span class="input-group-text bg-light">
+              <i class="bi bi-shuffle text-primary"></i>
+            </span>
+            <input type="number" class="form-control form-control-sm" id="batch-count" value="1" min="1" max="50"
+                   aria-label="{{ _('Количество вариантов') }}">
+            <button class="btn btn-success btn-sm" type="button" id="batch-generate-btn">
+              {{ _('Создать варианты') }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Скрытая форма для пакетной генерации -->
+        <form id="batch-form" method="POST" action="{{ url_for('teacher.generate_variants_batch', test_id=test.id) }}?next={{ next_url }}">
+          <input type="hidden" name="count" id="batch-count-input">
+        </form>
+
+        {% if test.variants %}
+          <h6 class="mt-3">{{ _('Сгенерированные варианты') }} ({{ test.variants|length }})</h6>
+          <div class="table-responsive mt-2">
+            <table class="table table-sm table-striped align-middle">
+              <thead>
+                <tr>
+                  <th>{{ _('Дата') }}</th>
+                  <th>{{ _('Вопросов') }}</th>
+                  <th>{{ _('Действия') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for v in test.variants|sort(attribute='created_at', reverse=True)|list %}
+                  <tr>
+                    <td>{{ v.created_at.strftime('%Y-%m-%d %H:%M') if v.created_at else '—' }}</td>
+                    <td>{{ v.question_id_list|from_json|length }}</td>
+                    <td>
+                      <a href="{{ url_for('teacher.view_variant', variant_id=v.id) }}?next={{ next_url }}"
+                         class="btn btn-sm btn-outline-info me-1"
+                         title="{{ _('Просмотр варианта') }}">
+                        <i class="bi bi-eye"></i>
+                      </a>
+                      <form method="POST"
+                            action="{{ url_for('teacher.delete_variant', variant_id=v.id) }}?next={{ next_url }}"
+                            class="d-inline"
+                            onsubmit="return confirm({{ _('Удалить вариант?')|tojson|safe }});">
+                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                title="{{ _('Удалить вариант') }}">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Статистика -->
+    <div class="card mt-3">
+      <div class="card-header bg-light">
+        <h6 class="mb-0">{{ _('Статистика вопросов автора') }}</h6>
+      </div>
+      <div class="card-body">
+        <div class="d-flex align-items-center mb-2">
+          <i class="bi bi-circle-fill text-success me-2"></i>
+          <span>{{ _('Открытые') }}: <strong>{{ total_open }}</strong></span>
+        </div>
+        <div class="d-flex align-items-center mb-2">
+          <i class="bi bi-circle-fill text-primary me-2"></i>
+          <span>{{ _('Графические') }}: <strong>{{ total_graphic }}</strong></span>
+        </div>
+        <div class="text-muted">
+          {{ _('Всего вопросов: %(total)s', total=total_questions) }}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Кнопки действий -->
+<div class="d-grid gap-2">
+  <a href="{{ url_for('teacher.test_constructor') }}" class="btn btn-secondary">{{ _('К списку тестов') }}</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Пакетная генерация
+    const batchBtn = document.getElementById('batch-generate-btn');
+    const batchCountInput = document.getElementById('batch-count');
+    const hiddenForm = document.getElementById('batch-form');
+    const hiddenCount = document.getElementById('batch-count-input');
+
+    if (batchBtn && batchCountInput && hiddenForm && hiddenCount) {
+        batchBtn.addEventListener('click', function() {
+            const count = parseInt(batchCountInput.value);
+            if (isNaN(count) || count < 1 || count > 50) {
+                alert({{ _("Укажите количество от 1 до 50")|tojson|safe }});
+                return;
+            }
+
+            const template = {{ _("Создать {count} вариантов для теста «{name}»?")|tojson|safe }};
+            const testName = {{ test.name|tojson|safe }};
+            const message = template
+                .replace('{count}', count)
+                .replace('{name}', testName);
+
+            if (!confirm(message)) {
+                return;
+            }
+            hiddenCount.value = count;
+            hiddenForm.submit();
+        });
+    }
+
+    // Flash — 5 секунд
+    document.querySelectorAll('.flash-message').forEach(el => {
+        setTimeout(() => {
+            try {
+                const alert = bootstrap.Alert.getInstance(el) || new bootstrap.Alert(el);
+                alert?.close?.();
+            } catch (e) {
+                el.style.display = 'none';
+            }
+        }, 5000);
+    });
+});
+</script>
+{% endblock %}

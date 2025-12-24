@@ -3,183 +3,206 @@
 Маршруты аутентификации приложения медицинского тестирования
 Содержит логику входа, регистрации и выхода пользователей
 """
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from app import db
 from app.models.user import User
-from config import Config
-from flask_babel import _ # Импортируем _ для перевода flash-сообщений
-from urllib.parse import urlparse, urljoin # Импортируем urlparse и urljoin
+from flask_babel import _
+from urllib.parse import urlparse, urljoin
+import os
 
 # Создание Blueprint для маршрутов аутентификации
-# Убедимся, что имя переменной 'bp'
-bp = Blueprint('auth', __name__) # Имя Blueprint 'auth'
+bp = Blueprint('auth', __name__)
 
-@bp.route('/login', methods=['GET', 'POST']) # Маршрут для /login относительно префикса Blueprint
+
+@bp.route('/login', methods=['GET', 'POST'])
 def login():
-    """
-    Маршрут для входа в систему
+    """Маршрут для входа в систему"""
+    if current_user.is_authenticated:
+        return redirect(url_for('main.index'))
 
-    GET: Отображает форму входа
-    POST: Обрабатывает данные формы входа
-    """
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
 
-        # Поиск пользователя в базе данных
         user = User.query.filter_by(username=username).first()
 
-        # Проверка пароля и аутентификация
-        # ВНИМАНИЕ: В реальном приложении используйте хеширование паролей!
-        if user and user.password_hash == password:
+        # 🔑 Критически важно: используем хэширование!
+        if user and user.check_password(password):
             login_user(user)
 
-            # Сохранение языка и темы в сессии
+            # Восстанавливаем настройки из профиля
             session['language'] = user.language
             session['theme'] = user.theme
 
-            # Перенаправление в зависимости от роли пользователя
+            # Редирект по роли
             if user.role == 'admin':
-                return redirect(url_for('admin.index'))
+                next_page = url_for('admin.index')
             elif user.role == 'teacher':
-                return redirect(url_for('teacher.index'))
+                next_page = url_for('teacher.index')
             else:  # student
-                return redirect(url_for('student.view_tests'))
+                next_page = url_for('student.view_tests')
+
+            # Безопасный редирект с next
+            next_arg = request.args.get('next')
+            if next_arg and is_safe_url(next_arg):
+                next_page = next_arg
+
+            return redirect(next_page)
         else:
             flash(_('Неверные учетные данные'))
 
     return render_template('auth/login.html')
 
-@bp.route('/register', methods=['GET', 'POST']) # Маршрут для /register относительно префикса Blueprint
+@bp.route('/register', methods=['GET', 'POST'])
 def register():
-    """
-    Маршрут для регистрации нового пользователя
+    """Маршрут для регистрации нового пользователя (студента)"""
+    if current_user.is_authenticated:
+        return redirect(url_for('main.index'))
 
-    GET: Отображает форму регистрации
-    POST: Обрабатывает данные формы регистрации
-    """
     if request.method == 'POST':
-        # Получение данных из формы
-        last_name = request.form['last_name']
-        first_name = request.form['first_name']
-        middle_name = request.form.get('middle_name', '') # Необязательное поле
-        group_number = request.form.get('group_number', '') # Необязательное поле
-        username = request.form['username']
-        password = request.form['password']
-        confirm_password = request.form['confirm_password']
+        last_name = request.form.get('last_name', '').strip()
+        first_name = request.form.get('first_name', '').strip()
+        middle_name = request.form.get('middle_name', '').strip()
+        group_number = request.form.get('group_number', '').strip()
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
 
-        # Проверка корректности username
+        # Валидация
         if not User.is_valid_email(username):
             flash(_('Некорректный формат email'))
             return render_template('auth/register.html')
 
-        # Проверка совпадения паролей
+        if not last_name or not first_name:
+            flash(_('Фамилия и имя обязательны'))
+            return render_template('auth/register.html')
+
         if password != confirm_password:
             flash(_('Пароли не совпадают'))
             return render_template('auth/register.html')
 
-        # Проверка существования пользователя
-        existing_user = User.query.filter_by(username=username).first()
-        if existing_user:
+        '''if len(password) < 6:
+            flash(_('Пароль должен содержать не менее 6 символов'))
+            return render_template('auth/register.html')'''
+
+        if User.query.filter_by(username=username).first():
             flash(_('Пользователь с таким логином уже существует'))
             return render_template('auth/register.html')
 
-        # Создание нового студента
-        new_user = User(
-            username=username,
-            password_hash=password,
-            role='student',  # Все зарегистрированные пользователи - студенты
-            first_name=first_name,
-            last_name=last_name,
-            middle_name=middle_name,
-            group_number=group_number
-        )
+        try:
+            new_user = User(
+                username=username,
+                role='student',
+                first_name=first_name,
+                last_name=last_name,
+                middle_name=middle_name,
+                group_number=group_number
+            )
+            new_user.set_password(password)  # ✅ хэшируем пароль
 
-        db.session.add(new_user)
-        db.session.commit()
+            db.session.add(new_user)
+            db.session.commit()
 
-        flash(_('Регистрация прошла успешно'))
-        return redirect(url_for('auth.login'))
+            flash(_('Регистрация прошла успешно. Вы можете войти.'))
+            return redirect(url_for('auth.login'))
+
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.exception("Error during registration")
+            flash(_('Ошибка при регистрации. Попробуйте позже.'))
 
     return render_template('auth/register.html')
 
-@bp.route('/logout') # Маршрут для /logout относительно префикса Blueprint
+@bp.route('/logout')
 @login_required
 def logout():
-    """
-    Маршрут для выхода из системы
-    """
+    """Выход из системы"""
     logout_user()
-    session.clear()  # Очистка сессии
-    return redirect(url_for('auth.login')) # Перенаправление на страницу входа
+    session.clear()
+    flash(_('Вы вышли из системы'))
+    return redirect(url_for('auth.login'))
+
 
 @bp.route('/change_language/<language>')
-# УБРАНО: @login_required
 def change_language(language):
-    """
-    Маршрут для изменения языка интерфейса
-
-    Args:
-        language (str): Код языка ('ru', 'en')
-    """
-    if language in Config.LANGUAGES:
-        # Обновляем язык в сессии
+    """Изменение языка интерфейса (без авторизации — для публичных страниц)"""
+    supported_langs = current_app.config.get('LANGUAGES', {})
+    if language in supported_langs:
         session['language'] = language
 
-        # Если пользователь аутентифицирован, обновляем его профиль (опционально)
         if current_user.is_authenticated:
             current_user.language = language
-            db.session.commit() # Зафиксируем изменение в БД
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
 
-        flash(_('Язык интерфейса изменен')) # Используем _
+        flash(_('Язык интерфейса изменён'))
     else:
-        flash(_('Неподдерживаемый язык')) # Используем _
+        flash(_('Неподдерживаемый язык'))
 
-    # --- ИСПРАВЛЕННАЯ ЛОГИКА РЕДИРЕКТА ---
-    # Получаем реферер
+    # Безопасный редирект: только локальные пути
     referrer = request.referrer
-    redirect_url = None
+    if referrer and is_safe_url(referrer):
+        # Избегаем зацикливания на /change_language/...
+        parsed = urlparse(referrer)
+        if not parsed.path.startswith('/auth/change_language/'):
+            return redirect(referrer)
 
-    # Проверяем, является ли реферер безопасным (наш домен)
-    if referrer:
-        ref_url_parsed = urlparse(referrer)
-        # Проверяем, что реферер принадлежит нашему приложению (scheme и netloc совпадают)
-        # или что он просто путь (относительный URL)
-        if ref_url_parsed.netloc == request.host:
-             # Убедимся, что URL не является URL-ом самого change_language (чтобы избежать цикла)
-             # и не является URL-ом login (чтобы избежать возврата на login)
-             ref_path = ref_url_parsed.path
-             if not ref_path.endswith(url_for('auth.change_language', language='any_placeholder')) and not ref_path.endswith(url_for('auth.login')):
-                 redirect_url = referrer
+    return redirect(url_for('main.index'))
 
-    # Если реферер не подходил или его не было, используем главную страницу
-    if not redirect_url:
-        redirect_url = url_for('main.index')
-    # Выполняем редирект
-    return redirect(redirect_url)
-    # ------------------------------
 
 @bp.route('/change_theme/<theme>')
 @login_required
 def change_theme(theme):
-    """
-    Маршрут для изменения темы оформления
+    """Изменение темы оформления — только для авторизованных"""
+    themes_path = current_app.config.get('THEMES_PATH')
+    if not themes_path:
+        flash(_('Темы не настроены'))
+        return redirect(request.referrer or url_for('main.index'))
 
-    Args:
-        theme (str): Название темы
-    """
-    import os
-    import json
+    # Нормализуем путь: если относительный — от корня приложения
+    if not os.path.isabs(themes_path):
+        themes_path = os.path.join(current_app.root_path, themes_path)
 
-    # Проверка существования файла темы
-    theme_file = os.path.join(Config.THEMES_PATH, f'{theme}.json')
-    if os.path.exists(theme_file):
+    theme_file = os.path.join(themes_path, f'{theme}.json')
+
+    # Защита от path traversal
+    if not os.path.abspath(theme_file).startswith(os.path.abspath(themes_path)):
+        current_app.logger.warning(f"Theme path traversal attempt: {theme}")
+        flash(_('Недопустимое название темы'))
+        return redirect(request.referrer or url_for('main.index'))
+
+    if os.path.isfile(theme_file):
         current_user.theme = theme
         session['theme'] = theme
-        db.session.commit()
-        flash(_('Тема оформления изменена'))
+        try:
+            db.session.commit()
+            flash(_('Тема оформления изменена'))
+        except Exception:
+            db.session.rollback()
+            flash(_('Ошибка при сохранении темы'))
     else:
         flash(_('Указанная тема не найдена'))
 
     return redirect(request.referrer or url_for('main.index'))
+
+# === Вспомогательные функции ===
+
+def is_safe_url(target):
+    """Проверка безопасности URL для редиректа"""
+    if not target:
+        return False
+
+    host_url = request.host_url.rstrip('/')
+    target_url = urljoin(host_url + '/', target).rstrip('/')
+
+    ref = urlparse(host_url)
+    test = urlparse(target_url)
+
+    return (
+        test.scheme in ('http', 'https') and
+        ref.netloc == test.netloc and
+        test.path.startswith('/')
+    )

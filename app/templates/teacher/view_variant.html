@@ -1,0 +1,145 @@
+<!-- templates/teacher/view_variant.html -->
+{% extends "base.html" %}
+
+{% block title %}{{ _('Вариант') }} #{{ variant.id }} — {{ test.name }} - {{ get_app_name() }}{% endblock %}
+
+{% block content %}
+<h2 class="text-center mb-4">
+  {{ _('Вариант') }} #{{ variant.id }}
+  <small class="text-muted">— {{ test.name }}</small>
+</h2>
+
+<!-- Информация о варианте -->
+<div class="card mb-4">
+  <div class="card-header bg-light">
+    <h5 class="mb-0">{{ _('Информация о варианте') }}</h5>
+  </div>
+  <div class="card-body">
+    <dl class="row mb-0">
+      <dt class="col-sm-3 col-md-2">{{ _('Тест') }}:</dt>
+      <dd class="col-sm-9 col-md-10">
+        {{ test.name }}
+        <a href="{{ url_for('teacher.view_test', test_id=test.id) }}?next={{ request.url|urlencode }}"
+           class="ms-2 text-primary small"
+           title="{{ _('Перейти к тесту') }}">
+          <i class="bi bi-box-arrow-up-right"></i>
+        </a>
+      </dd>
+
+      <dt class="col-sm-3 col-md-2">{{ _('Вопросов') }}:</dt>
+      <dd class="col-sm-9 col-md-10">
+        {% set q_list = variant.question_id_list|from_json %}
+        {{ q_list|length if q_list is iterable else 0 }}
+      </dd>
+
+      <dt class="col-sm-3 col-md-2">{{ _('Дата создания') }}:</dt>
+      <dd class="col-sm-9 col-md-10">
+        {{ variant.created_at.strftime('%Y-%m-%d %H:%M') if variant.created_at else '—' }}
+      </dd>
+
+      <dt class="col-sm-3 col-md-2">{{ _('Создатель') }}:</dt>
+      <dd class="col-sm-9 col-md-10">{{ test.creator.get_formatted_name() }}</dd>
+    </dl>
+  </div>
+</div>
+
+<!-- Вопросы варианта -->
+{% if questions %}
+  <div class="mb-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <h5 class="mb-0">{{ _('Вопросы варианта') }} ({{ questions|length }})</h5>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-striped align-middle">
+      <thead>
+        <tr>
+          <th style="width: 5%;">#</th>
+          <th>{{ _('Тема') }}</th>
+          <th>{{ _('Тип') }}</th>
+          <th>{{ _('Вопрос') }}</th>
+          <th>{{ _('Ответ') }}</th>
+          <th>{{ _('Аннотация') }}</th>
+          <th>{{ _('Действия') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for q in questions %}
+          <tr>
+            <td><strong>{{ loop.index }}</strong></td>
+            <td>
+              {%- set topic_name = topic_map.get(q.topic_id, '?') -%}
+              <span class="badge bg-info text-dark">{{ topic_name }}</span>
+            </td>
+            <td>
+              <span class="badge bg-{{ 'success' if q.question_type == 'open' else 'primary' }}">
+                {{ _('Открытый') if q.question_type == 'open' else _('Графический') }}
+              </span>
+            </td>
+            <td style="max-width: 250px; word-break: break-word;">
+              {{ q.question_text }}
+            </td>
+            <td style="max-width: 200px; word-break: break-word;">
+              {{ q.correct_answer or '—' }}
+            </td>
+            <td>
+              {% if q.question_type == 'graphic' and q.has_image_annotation %}
+                <span class="text-success">
+                  <i class="bi bi-check-circle"></i> {{ q.image_annotation_id }}
+                </span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td>
+              <a href="{{ url_for('teacher.edit_question', question_id=q.id) }}?next={{ request.url|urlencode }}"
+                 class="btn btn-sm btn-outline-primary"
+                 title="{{ _('Редактировать вопрос') }}">
+                <i class="bi bi-pencil"></i>
+              </a>
+              <a href="{{ url_for('teacher.delete_question', question_id=q.id) }}?next={{ request.url|urlencode }}"
+                 class="btn btn-sm btn-outline-danger"
+                 onclick="return confirm({{ _('Удалить вопрос?')|tojson|safe }})"
+                 title="{{ _('Удалить вопрос') }}">
+                <i class="bi bi-trash"></i>
+              </a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="alert alert-warning text-center">
+    {{ _('Вариант пуст или вопросы удалены.') }}
+  </div>
+{% endif %}
+
+<!-- Кнопки действий -->
+<div class="d-grid gap-2">
+  <a href="{{ url_for('teacher.view_test', test_id=test.id) }}?next={{ request.args.get('next')|urlencode if request.args.get('next') else '' }}"
+     class="btn btn-secondary">
+    <i class="bi bi-arrow-left"></i> {{ _('К тесту') }}
+  </a>
+  <a href="{{ url_for('teacher.test_constructor') }}" class="btn btn-outline-secondary">
+    {{ _('К списку тестов') }}
+  </a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Flash — 5 секунд
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.flash-message').forEach(el => {
+        setTimeout(() => {
+            try {
+                const alert = bootstrap.Alert.getInstance(el) || new bootstrap.Alert(el);
+                alert?.close?.();
+            } catch (e) {
+                el.style.display = 'none';
+            }
+        }, 5000);
+    });
+});
+</script>
+{% endblock %}

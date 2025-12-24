@@ -1,0 +1,216 @@
+<!-- templates/teacher/edit_test.html -->
+{% extends "base.html" %}
+
+{% block title %}{{ _('Редактировать тест') }}: {{ test.name }} - {{ get_app_name() }}{% endblock %}
+
+{% block content %}
+{% set next_url = (request.args.get('next') or request.referrer or url_for('teacher.test_constructor'))|urlencode %}
+
+<h2 class="text-center mb-4">{{ _('Редактировать тест') }}: <span class="text-primary">{{ test.name }}</span></h2>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <form method="POST" action="{{ url_for('teacher.edit_test', test_id=test.id) }}?next={{ next_url }}" id="edit-test-form">
+      <div class="mb-3">
+        <label for="name" class="form-label">{{ _('Название теста') }} *</label>
+        <input type="text" class="form-control" id="name" name="name" value="{{ name }}" required>
+      </div>
+      <div class="mb-3">
+        <label for="description" class="form-label">{{ _('Описание') }}</label>
+        <textarea class="form-control" id="description" name="description" rows="2">{{ description }}</textarea>
+      </div>
+
+      <!-- Редактор структуры -->
+      <div class="mb-3">
+        <h6>{{ _('Структура теста') }}</h6>
+        <p class="small text-muted">
+          {{ _('Измените структуру. Существующие варианты останутся, но новые будут строиться по новой структуре.') }}
+        </p>
+
+        <div id="structure-container" class="mt-2">
+          <!-- Элементы будут добавлены JS -->
+        </div>
+
+        <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="add-question-btn">
+          <i class="bi bi-plus"></i> {{ _('Добавить вопрос') }}
+        </button>
+
+        <input type="hidden" name="structure" id="structure-input" value='{{ structure_raw|safe }}'>
+      </div>
+
+      <div class="d-grid gap-2">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-save"></i> {{ _('Сохранить изменения') }}
+        </button>
+        <a href="{{ next_url|safe }}" class="btn btn-secondary">
+          <i class="bi bi-arrow-left"></i> {{ _('Отмена') }}
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const container = document.getElementById('structure-container');
+    const template = document.getElementById('question-template');
+    const addButton = document.getElementById('add-question-btn');
+    const structureInput = document.getElementById('structure-input');
+    const form = document.getElementById('edit-test-form');
+
+    // === Загрузка статистики ===
+    let questionStats = {};
+    fetch('{{ url_for("teacher.stats_api") }}')
+        .then(r => r.json())
+        .then(data => {
+            questionStats = data;
+            updateAllStats();
+        })
+        .catch(err => console.warn('Не удалось загрузить статистику вопросов', err));
+
+    // === Восстановление структуры ===
+    let structure = [];
+    try {
+        const initial = JSON.parse(structureInput.value || '[]');
+        if (Array.isArray(initial)) structure = initial;
+    } catch (e) {
+        console.warn('Invalid initial structure');
+    }
+
+    // === Функции (аналогично test_constructor.html) ===
+    function updateStructureInput() {
+        const items = container.querySelectorAll('.question-item');
+        const arr = [];
+        items.forEach(item => {
+            const topicSelect = item.querySelector('.topic-select');
+            const typeSelect = item.querySelector('.type-select');
+            const tid = parseInt(topicSelect.value);
+            const ttype = typeSelect.value;
+            if (!isNaN(tid) && ttype) {
+                arr.push({ topic_id: tid, question_type: ttype });
+            }
+        });
+        structureInput.value = JSON.stringify(arr);
+    }
+
+    function updateItemStats(item) {
+        const topicSelect = item.querySelector('.topic-select');
+        const typeSelect = item.querySelector('.type-select');
+        const statEl = item.querySelector('.stat-badge');
+
+        const tid = topicSelect.value;
+        const qtype = typeSelect.value;
+
+        if (!tid || !qtype) {
+            if (statEl) statEl.remove();
+            return;
+        }
+
+        const key = `${tid},${qtype}`;
+        const count = questionStats[key] || 0;
+
+        let badge = statEl;
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'badge ms-2 stat-badge';
+            item.querySelector('.input-group').insertBefore(badge, item.querySelector('.remove-btn'));
+        }
+
+        badge.textContent = `${count} {{ _('вопросов') }}`;
+        badge.classList.remove('bg-success', 'bg-warning', 'bg-danger');
+        if (count >= 5) {
+            badge.classList.add('bg-success');
+        } else if (count >= 2) {
+            badge.classList.add('bg-warning');
+        } else {
+            badge.classList.add('bg-danger');
+        }
+    }
+
+    function updateAllStats() {
+        container.querySelectorAll('.question-item').forEach(updateItemStats);
+    }
+
+    function createQuestionItem(data = null) {
+        const clone = template.content.cloneNode(true);
+        const item = clone.querySelector('.question-item');
+
+        if (data) {
+            const topicSelect = item.querySelector('.topic-select');
+            const typeSelect = item.querySelector('.type-select');
+            topicSelect.value = data.topic_id;
+            typeSelect.value = data.question_type;
+        }
+
+        item.querySelector('.remove-btn').addEventListener('click', () => {
+            item.remove();
+            updateStructureInput();
+        });
+
+        item.querySelectorAll('select').forEach(sel => {
+            sel.addEventListener('change', () => {
+                updateStructureInput();
+                updateItemStats(item);
+            });
+        });
+
+        return item;
+    }
+
+    // === Инициализация ===
+    if (structure.length > 0) {
+        structure.forEach(item => container.appendChild(createQuestionItem(item)));
+    } else {
+        container.appendChild(createQuestionItem());
+    }
+
+    addButton.addEventListener('click', () => {
+        container.appendChild(createQuestionItem());
+    });
+
+    form.addEventListener('submit', function(e) {
+        updateStructureInput();
+        const items = container.querySelectorAll('.question-item');
+        if (items.length === 0) {
+            alert({{ _("Добавьте хотя бы один вопрос в структуру.")|tojson|safe }});
+            e.preventDefault();
+            return false;
+        }
+    });
+
+    // Flash — 5 сек
+    document.querySelectorAll('.flash-message').forEach(el => {
+        setTimeout(() => {
+            try {
+                const alert = bootstrap.Alert.getInstance(el) || new bootstrap.Alert(el);
+                alert?.close?.();
+            } catch (e) {
+                el.style.display = 'none';
+            }
+        }, 5000);
+    });
+});
+</script>
+
+<!-- Шаблон элемента вопроса -->
+<template id="question-template">
+  <div class="input-group mb-2 question-item">
+    <select class="form-select form-select-sm me-2 topic-select" required>
+      <option value="" disabled>{{ _('Выберите тему') }}</option>
+      {% for topic in topic_choices %}
+        <option value="{{ topic.id }}">{{ topic.name }}</option>
+      {% endfor %}
+    </select>
+    <select class="form-select form-select-sm me-2 type-select" required>
+      {% for qt in question_types %}
+        <option value="{{ qt.value }}">{{ qt.label }}</option>
+      {% endfor %}
+    </select>
+    <button type="button" class="btn btn-outline-danger btn-sm remove-btn">
+      <i class="bi bi-trash"></i>
+    </button>
+  </div>
+</template>
+{% endblock %}
